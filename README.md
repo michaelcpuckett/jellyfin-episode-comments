@@ -6,6 +6,24 @@ The Trakt Client ID stays on the Jellyfin server. Android TV uses its existing J
 
 ## Install
 
+### From Jellyfin's plugin catalog (recommended)
+
+1. In the Jellyfin **web dashboard**, open **Dashboard → Plugins → Repositories** and select **Add** (the `+` button).
+2. Enter **Episode Comments** as the name and paste this exact repository URL:
+
+   ```text
+   https://raw.githubusercontent.com/michaelcpuckett/jellyfin-episode-comments/master/manifest.json
+   ```
+
+3. Save, open the **Catalog** tab, and refresh it if necessary. Select **Episode Comments**, then **Install**. The plugin targets **Jellyfin 12.x**.
+4. Restart the Jellyfin **server** after installation.
+5. Open **Dashboard → Plugins → My Plugins → Episode Comments → Settings**, enter your Trakt app's **Client ID**, and save.
+6. Use your custom Android TV stats APK. Comments appears on episode details when the plugin is installed and configured.
+
+The repository is hosted directly from the public GitHub `master` branch. GitHub Pages and GitHub Releases are not required. The repository URL must end in `manifest.json`; the normal GitHub repository page and `meta.json` are not catalog URLs.
+
+### Manual installation
+
 1. Stop Jellyfin 12.
 2. Extract the plugin install ZIP into your Jellyfin **plugins directory**. The resulting layout must be `plugins/EpisodeComments_0.1.0.0/Jellyfin.Plugin.EpisodeComments.dll` and `meta.json` beside it. For Docker this normally means `/config/plugins/EpisodeComments_0.1.0.0/`; use your server's configured data directory on other platforms.
 3. Start Jellyfin, then open **Dashboard → Plugins → Episode Comments → Settings**.
@@ -13,7 +31,9 @@ The Trakt Client ID stays on the Jellyfin server. Android TV uses its existing J
 5. Install the accompanying **stats** APK on your Android TV, or build your modified checkout. It uses your existing stats variant: release optimizations and resource shrinking, the `.debug` package suffix and debug signing key, and a non-debuggable APK.
 6. Open an episode's details and select **Comments** (possibly in More). Select a comment to read it, reveal spoilers, or open replies. Sorting and previous/next page buttons work with a remote.
 
-To remove the plugin, stop Jellyfin, remove only the `EpisodeComments_0.1.0.0` plugin folder and restart Jellyfin. Android TV hides Comments when the capability check fails. It rechecks when details load and immediately before opening the dialog. An already open dialog handles unavailable endpoints as an error with Retry; playback and other details features remain independent.
+The ZIP in `packages/` is for Jellyfin's catalog installer and contains files at its root. The manual ZIP generated in `dist/` includes the outer `EpisodeComments_0.1.0.0` folder. If manually using the catalog ZIP, create that plugin folder yourself and extract its contents inside it.
+
+To remove the plugin, uninstall it from **My Plugins** and restart Jellyfin. For manual removal, stop Jellyfin, remove only this plugin's folder (`EpisodeComments_0.1.0.0` for the manual ZIP, or `Episode Comments_0.1.0.0` for a catalog installation), then restart Jellyfin. Android TV hides Comments when the capability check fails. It rechecks when details load and immediately before opening the dialog. An already open dialog handles unavailable endpoints as an error with Retry; playback and other details features remain independent.
 
 ## Android TV changes
 
@@ -124,6 +144,8 @@ Requires a .NET 10 SDK and Jellyfin 12.x. The plugin references the 12.0 API and
 dotnet test tests/EpisodeComments.Tests -c Release
 ./build.ps1
 ```
+
+`build.ps1` builds the DLL, creates the manual ZIP in `dist/`, creates the flat catalog ZIP in `packages/`, and writes `manifest.json` with the matching MD5 checksum required by Jellyfin. Commit and push **both** `manifest.json` and the `packages/` ZIP together. You can run `./build.ps1 -SkipBuild` to regenerate only the packaging from the existing root DLL. A fork can use `-Repository OWNER/REPO -Branch master` to generate its own URLs.
 
 For Android TV, use Java 21 and your Android SDK, then run in your checkout:
 
