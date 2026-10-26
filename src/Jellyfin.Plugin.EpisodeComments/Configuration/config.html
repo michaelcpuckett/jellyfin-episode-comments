@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Episode Comments</title></head>
+<body>
+<div id="EpisodeCommentsConfig" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+  <div data-role="content"><div class="content-primary">
+    <form id="EpisodeCommentsForm">
+      <h2>Episode Comments · Trakt</h2>
+      <p>Comments are served through Jellyfin to compatible web, mobile and TV clients. Public Trakt comments are shared across server users. No Trakt user sign-in is required.</p>
+      <div class="inputContainer">
+        <label class="inputLabel" for="TraktClientId">Trakt Client ID</label>
+        <input is="emby-input" id="TraktClientId" type="password" autocomplete="off" required />
+        <div class="fieldDescription">The Client ID from your Trakt API application. A client secret is not needed. Only administrators can access this configuration.</div>
+      </div>
+      <div class="inputContainer">
+        <label class="inputLabel" for="CacheMinutes">Cache duration (minutes)</label>
+        <input is="emby-input" id="CacheMinutes" type="number" min="1" max="1440" required />
+      </div>
+      <div class="checkboxContainer"><label><input is="emby-checkbox" id="AllowAiredNumberFallback" type="checkbox" /><span>Allow matching by series ID and aired episode numbers when no episode ID matches</span></label></div>
+      <div class="inputContainer">
+        <label class="inputLabel" for="Mappings">Episode overrides (JSON array)</label>
+        <textarea id="Mappings" rows="8" style="width:100%;box-sizing:border-box;font-family:monospace" spellcheck="false"></textarea>
+        <div class="fieldDescription">For alternate numbering or combined files, deliberately select one discussion per Jellyfin item. Example: [{"ItemId":"JELLYFIN-EPISODE-GUID","TraktShowId":1388,"Season":1,"Episode":1}]. An empty array [] uses automatic matching. Season 0 supports specials.</div>
+      </div>
+      <p id="EpisodeCommentsError" role="alert"></p>
+      <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+    </form>
+  </div></div>
+  <script>
+  (function () {
+    var root = document.querySelector('#EpisodeCommentsConfig');
+    var pluginId = '79672a4d-f247-4370-9e41-f508bd891631';
+    var field = function (name) { return root.querySelector('#' + name); };
+    root.addEventListener('pageshow', async function () {
+      Dashboard.showLoadingMsg();
+      try {
+        var config = await ApiClient.getPluginConfiguration(pluginId);
+        field('TraktClientId').value = config.TraktClientId || '';
+        field('CacheMinutes').value = config.CacheMinutes || 15;
+        field('AllowAiredNumberFallback').checked = config.AllowAiredNumberFallback;
+        field('Mappings').value = JSON.stringify(config.Mappings || [], null, 2);
+      } catch (e) { field('EpisodeCommentsError').textContent = 'Could not load settings.'; }
+      finally { Dashboard.hideLoadingMsg(); }
+    });
+    field('EpisodeCommentsForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      field('EpisodeCommentsError').textContent = '';
+      try {
+        var mappings = JSON.parse(field('Mappings').value);
+        if (!Array.isArray(mappings)) throw new Error('Overrides must be a JSON array.');
+        var seen = new Set();
+        mappings.forEach(function (m) {
+          var id = String(m.ItemId || '').replace(/-/g, '').toLowerCase();
+          if (!/^[0-9a-f]{32}$/.test(id) || /^0+$/.test(id) || seen.has(id) || !Number.isSafeInteger(m.TraktShowId) || m.TraktShowId <= 0 || !Number.isInteger(m.Season) || m.Season < 0 || !Number.isInteger(m.Episode) || m.Episode <= 0) throw new Error('Each override needs a unique ItemId, positive TraktShowId and Episode, and a Season of 0 or higher.');
+          seen.add(id);
+        });
+        Dashboard.showLoadingMsg();
+        var config = await ApiClient.getPluginConfiguration(pluginId);
+        config.TraktClientId = field('TraktClientId').value.trim();
+        config.CacheMinutes = Number(field('CacheMinutes').value);
+        config.AllowAiredNumberFallback = field('AllowAiredNumberFallback').checked;
+        config.Mappings = mappings;
+        var result = await ApiClient.updatePluginConfiguration(pluginId, config);
+        Dashboard.processPluginConfigurationUpdateResult(result);
+      } catch (e) { field('EpisodeCommentsError').textContent = e.message || 'Could not save settings.'; }
+      finally { Dashboard.hideLoadingMsg(); }
+    });
+  }());
+  </script>
+</div></body></html>

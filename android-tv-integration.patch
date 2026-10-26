@@ -1,0 +1,582 @@
+diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsApi.kt b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsApi.kt
+new file mode 100644
+index 000000000..f9d09e6b3
+--- /dev/null
++++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsApi.kt
+@@ -0,0 +1,74 @@
++package org.jellyfin.androidtv.ui.itemdetail
++
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.withContext
++import kotlinx.coroutines.withTimeoutOrNull
++import kotlinx.serialization.Serializable
++import kotlinx.serialization.json.Json
++import org.jellyfin.sdk.api.client.ApiClient
++import java.util.UUID
++
++@Serializable
++internal data class EpisodeComment(
++	val id: Long,
++	val author: String,
++	val text: String,
++	val spoiler: Boolean = false,
++	val likes: Int = 0,
++	val replyCount: Int = 0,
++	val createdAt: String? = null,
++) {
++	// Trakt also supports inline spoiler tags. Hide the whole comment until revealed.
++	val containsSpoilers: Boolean get() = spoiler || text.contains("[spoiler]", ignoreCase = true)
++}
++
++@Serializable
++internal data class EpisodeCommentPage(
++	val page: Int,
++	val pageCount: Int,
++	val totalItems: Int,
++	val comments: List<EpisodeComment>,
++)
++
++@Serializable
++private data class EpisodeCommentsCapabilities(val pluginId: String, val apiVersion: Int, val configured: Boolean)
++
++internal class EpisodeCommentsApi(private val api: ApiClient) {
++	private val json = Json { ignoreUnknownKeys = true }
++
++	suspend fun isAvailable(): Boolean = try {
++		withTimeoutOrNull(2500) {
++			withContext(Dispatchers.IO) {
++				val response = api.request(pathTemplate = "/EpisodeComments/v1/Capabilities")
++				val capabilities = json.decodeFromString<EpisodeCommentsCapabilities>(response.body.decodeToString())
++				capabilities.pluginId == "79672a4d-f247-4370-9e41-f508bd891631" && capabilities.apiVersion == 1 && capabilities.configured
++			}
++		} ?: false
++	} catch (error: CancellationException) {
++		throw error
++	} catch (_: Exception) {
++		// Optional server feature: absent, disabled, old or unreachable means hidden.
++		false
++	}
++
++	suspend fun getComments(itemId: UUID, sort: String, page: Int, parentId: Long? = null): EpisodeCommentPage = withContext(Dispatchers.IO) {
++		val path = if (parentId == null) {
++			"/EpisodeComments/v1/Items/{itemId}/Comments"
++		} else {
++			"/EpisodeComments/v1/Items/{itemId}/Comments/{commentId}/Replies"
++		}
++		val parameters = buildMap<String, Any?> {
++			put("itemId", itemId)
++			if (parentId != null) put("commentId", parentId)
++		}
++		val query = buildMap<String, Any?> {
++			put("page", page)
++			put("limit", 20)
++			if (parentId == null) put("sort", sort)
++		}
++		// The SDK preserves server base paths and sends the current Jellyfin session header.
++		val response = api.request(pathTemplate = path, pathParameters = parameters, queryParameters = query)
++		json.decodeFromString(response.body.decodeToString())
++	}
++}
+diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsDialogFragment.kt b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsDialogFragment.kt
+new file mode 100644
+index 000000000..5a8fe07b3
+--- /dev/null
++++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsDialogFragment.kt
+@@ -0,0 +1,252 @@
++package org.jellyfin.androidtv.ui.itemdetail
++
++import android.app.AlertDialog
++import android.app.Dialog
++import android.os.Bundle
++import android.view.Gravity
++import android.view.KeyEvent
++import android.view.View
++import android.widget.Button
++import android.widget.LinearLayout
++import android.widget.ScrollView
++import android.widget.TextView
++import androidx.core.view.isVisible
++import androidx.fragment.app.DialogFragment
++import androidx.fragment.app.FragmentManager
++import androidx.lifecycle.lifecycleScope
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.launch
++import kotlinx.serialization.Serializable
++import kotlinx.serialization.json.Json
++import org.jellyfin.androidtv.R
++import org.jellyfin.sdk.api.client.ApiClient
++import org.jellyfin.sdk.api.client.exception.InvalidStatusException
++import org.jellyfin.sdk.model.api.BaseItemDto
++import org.koin.android.ext.android.inject
++import timber.log.Timber
++import java.util.UUID
++
++@Serializable
++private data class DiscussionLocation(val parentId: Long? = null, val page: Int = 1)
++
++class EpisodeCommentsDialogFragment : DialogFragment() {
++	private val api by inject<ApiClient>()
++	private val locations = mutableListOf(DiscussionLocation())
++	private var sort = "likes"
++	private var loadJob: Job? = null
++	private lateinit var comments: LinearLayout
++	private lateinit var status: TextView
++	private lateinit var scroll: ScrollView
++	private lateinit var sortButton: Button
++	private lateinit var previousButton: Button
++	private lateinit var nextButton: Button
++	private lateinit var backButton: Button
++
++	override fun onCreate(savedInstanceState: Bundle?) {
++		super.onCreate(savedInstanceState)
++		sort = savedInstanceState?.getString("sort") ?: "likes"
++		savedInstanceState?.getString("locations")?.let {
++			locations.clear()
++			locations.addAll(Json.decodeFromString<List<DiscussionLocation>>(it))
++		}
++		parentFragmentManager.setFragmentResultListener(REPLIES_RESULT, this) { _, result ->
++			locations.add(DiscussionLocation(result.getLong("commentId")))
++			load()
++		}
++	}
++
++	override fun onSaveInstanceState(outState: Bundle) {
++		super.onSaveInstanceState(outState)
++		outState.putString("sort", sort)
++		outState.putString("locations", Json.encodeToString(locations))
++	}
++
++	override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
++		val context = requireContext()
++		val density = resources.displayMetrics.density
++		val padding = (20 * density).toInt()
++		val root = LinearLayout(context).apply {
++			orientation = LinearLayout.VERTICAL
++			setPadding(padding, padding / 2, padding, padding / 2)
++		}
++		val controls = LinearLayout(context)
++		fun control(label: Int, action: () -> Unit) = Button(context).apply {
++			setText(label)
++			setOnClickListener { action() }
++			controls.addView(this, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
++		}
++		backButton = control(R.string.episode_comments_back) { goBack() }
++		sortButton = control(R.string.episode_comments_sort) {
++			val labels = intArrayOf(R.string.episode_comments_sort_likes, R.string.episode_comments_sort_newest, R.string.episode_comments_sort_oldest, R.string.episode_comments_sort_replies)
++			val values = arrayOf("likes", "newest", "oldest", "replies")
++			AlertDialog.Builder(context)
++				.setTitle(R.string.episode_comments_sort)
++				.setSingleChoiceItems(labels.map(::getString).toTypedArray(), values.indexOf(sort)) { dialog, index ->
++					sort = values[index]
++					locations.clear()
++					locations.add(DiscussionLocation())
++					dialog.dismiss()
++					load()
++				}.show()
++		}
++		previousButton = control(R.string.episode_comments_previous) { changePage(-1) }
++		nextButton = control(R.string.episode_comments_next) { changePage(1) }
++		root.addView(controls)
++		status = TextView(context).apply { textSize = 16f; setPadding(0, padding / 2, 0, padding / 2) }
++		root.addView(status)
++		comments = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
++		scroll = ScrollView(context).apply { addView(comments); isFillViewport = true }
++		root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (resources.displayMetrics.heightPixels * 0.48f).toInt()))
++		root.addView(TextView(context).apply { setText(R.string.episode_comments_attribution); textSize = 14f })
++		return AlertDialog.Builder(context)
++			.setTitle(R.string.episode_comments_title)
++			.setView(root)
++			.setPositiveButton(android.R.string.cancel, null)
++			.create().apply {
++				setOnKeyListener { _, keyCode, event ->
++					if (keyCode == KeyEvent.KEYCODE_BACK && locations.size > 1) {
++						if (event.action == KeyEvent.ACTION_UP) goBack()
++						true
++					} else false
++				}
++			}
++	}
++
++	override fun onStart() {
++		super.onStart()
++		dialog?.window?.setLayout((resources.displayMetrics.widthPixels * 0.86f).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
++		load()
++	}
++
++	private fun changePage(change: Int) {
++		locations[locations.lastIndex] = locations.last().copy(page = locations.last().page + change)
++		load()
++	}
++
++	private fun goBack() {
++		if (locations.size > 1) locations.removeAt(locations.lastIndex)
++		load()
++	}
++
++	private fun load() {
++		if (!::comments.isInitialized) return
++		loadJob?.cancel()
++		val location = locations.last()
++		comments.removeAllViews()
++		status.setText(R.string.episode_comments_loading)
++		previousButton.isEnabled = false
++		nextButton.isEnabled = false
++		backButton.isVisible = locations.size > 1
++		sortButton.isVisible = location.parentId == null
++		loadJob = lifecycleScope.launch {
++			try {
++				val page = EpisodeCommentsApi(api).getComments(UUID.fromString(requireArguments().getString("itemId")), sort, location.page, location.parentId)
++				status.text = if (page.comments.isEmpty()) getString(R.string.episode_comments_empty)
++				else getString(if (location.parentId == null) R.string.episode_comments_page else R.string.episode_comments_replies_page, page.page, page.pageCount.coerceAtLeast(1), page.totalItems)
++				for (comment in page.comments) {
++					comments.addView(Button(requireContext()).apply {
++						isAllCaps = false
++						gravity = Gravity.START or Gravity.CENTER_VERTICAL
++						text = getString(R.string.episode_comments_card, comment.author, comment.likes, comment.replyCount) + "\n" +
++							if (comment.containsSpoilers) getString(R.string.episode_comments_spoiler) else comment.text.take(240)
++						setOnClickListener { EpisodeCommentDetailDialogFragment.show(parentFragmentManager, comment) }
++					}, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
++				}
++				previousButton.isEnabled = page.page > 1
++				nextButton.isEnabled = page.page < page.pageCount
++				focusFirstComment()
++			} catch (error: CancellationException) {
++				throw error
++			} catch (error: Exception) {
++				Timber.w("Episode comments request failed (%s)", error.javaClass.simpleName)
++				status.setText(when ((error as? InvalidStatusException)?.status) {
++					401, 403 -> R.string.episode_comments_auth_error
++					404 -> R.string.episode_comments_missing_error
++					409 -> R.string.episode_comments_mapping_error
++					429 -> R.string.episode_comments_rate_error
++					503 -> R.string.episode_comments_config_error
++					else -> R.string.episode_comments_network_error
++				})
++				comments.addView(Button(requireContext()).apply {
++					setText(R.string.episode_comments_retry)
++					setOnClickListener { load() }
++				})
++				focusFirstComment()
++			}
++		}
++	}
++
++	private fun focusFirstComment() = scroll.post {
++		scroll.scrollTo(0, 0)
++		(comments.getChildAt(0) ?: if (backButton.isVisible) backButton else sortButton).requestFocus()
++	}
++
++	companion object {
++		internal const val REPLIES_RESULT = "episode-comments-replies"
++		private const val TAG = "episode-comments"
++
++		@JvmStatic
++		fun show(manager: FragmentManager, item: BaseItemDto) {
++			if (manager.isStateSaved || manager.findFragmentByTag(TAG) != null) return
++			EpisodeCommentsDialogFragment().apply { arguments = Bundle().apply { putString("itemId", item.id.toString()) } }.show(manager, TAG)
++		}
++	}
++}
++
++class EpisodeCommentDetailDialogFragment : DialogFragment() {
++	private var revealed = false
++
++	override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
++		val comment = Json.decodeFromString<EpisodeComment>(requireArguments().getString("comment")!!)
++		revealed = savedInstanceState?.getBoolean("revealed") ?: false
++		val padding = (24 * resources.displayMetrics.density).toInt()
++		val body = TextView(requireContext()).apply {
++			textSize = 18f
++			setPadding(padding, padding / 2, padding, padding / 2)
++		}
++		fun updateText() {
++			body.text = if (comment.containsSpoilers && !revealed) getString(R.string.episode_comments_spoiler)
++			else comment.text
++		}
++		updateText()
++		val scroll = ScrollView(requireContext()).apply { addView(body); isFocusable = true }
++		val builder = AlertDialog.Builder(requireContext())
++			.setTitle(getString(R.string.episode_comments_detail_title, comment.author, comment.createdAt?.take(10) ?: ""))
++			.setView(scroll)
++			.setPositiveButton(android.R.string.ok, null)
++		if (comment.containsSpoilers) builder.setNeutralButton(R.string.episode_comments_reveal, null)
++		if (comment.replyCount > 0) builder.setNegativeButton(R.string.episode_comments_replies) { _, _ ->
++			parentFragmentManager.setFragmentResult(EpisodeCommentsDialogFragment.REPLIES_RESULT, Bundle().apply { putLong("commentId", comment.id) })
++		}
++		return builder.create().apply {
++			setOnShowListener {
++				scroll.layoutParams = scroll.layoutParams.apply { height = (resources.displayMetrics.heightPixels * 0.5f).toInt() }
++				window?.setLayout((resources.displayMetrics.widthPixels * 0.8f).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
++				if (comment.containsSpoilers) getButton(AlertDialog.BUTTON_NEUTRAL).apply {
++					setText(if (revealed) R.string.episode_comments_hide else R.string.episode_comments_reveal)
++					setOnClickListener {
++						revealed = !revealed
++						updateText()
++						setText(if (revealed) R.string.episode_comments_hide else R.string.episode_comments_reveal)
++					}
++				}
++				scroll.requestFocus()
++			}
++		}
++	}
++
++	override fun onSaveInstanceState(outState: Bundle) {
++		super.onSaveInstanceState(outState)
++		outState.putBoolean("revealed", revealed)
++	}
++
++	companion object {
++		internal fun show(manager: FragmentManager, comment: EpisodeComment) {
++			if (manager.isStateSaved || manager.findFragmentByTag("episode-comment-detail") != null) return
++			EpisodeCommentDetailDialogFragment().apply {
++				arguments = Bundle().apply { putString("comment", Json.encodeToString(comment)) }
++			}.show(manager, "episode-comment-detail")
++		}
++	}
++}
+diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragment.java b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragment.java
+index 148d50f2b..f5c40a7e0 100644
+--- a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragment.java
++++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragment.java
+@@ -763,8 +763,12 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
+     TextUnderButton moreButton;
+     TextUnderButton playButton = null;
+     TextUnderButton trailerButton = null;
++    TextUnderButton commentsButton = null;
++    private boolean commentsAvailable = false;
+ 
+     private void addButtons(int buttonSize) {
++        commentsAvailable = false;
++        commentsButton = null;
+         BaseItemDto baseItem = mBaseItem;
+         String buttonLabel;
+         if (baseItem.getType() == BaseItemKind.SERIES) {
+@@ -856,6 +860,14 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
+             mDetailsOverviewRow.addAction(mVersionsButton);
+         }
+ 
++        if (mBaseItem.getType() == BaseItemKind.EPISODE) {
++            commentsButton = TextUnderButton.create(requireContext(), R.drawable.ic_episode_comments, buttonSize, 0,
++                    getString(R.string.episode_comments_title), v -> FullDetailsFragmentHelperKt.openEpisodeComments(this));
++            commentsButton.setVisibility(View.GONE);
++            mDetailsOverviewRow.addAction(commentsButton);
++            FullDetailsFragmentHelperKt.discoverEpisodeComments(this);
++        }
++
+         if (MediaFileInfoDialogFragment.canShow(mBaseItem)) {
+             fileInfoButton = TextUnderButton.create(requireContext(), R.drawable.ic_info, buttonSize, 0,
+                     getString(R.string.file_info), v -> MediaFileInfoDialogFragment.show(getParentFragmentManager(), mBaseItem));
+@@ -1127,10 +1139,20 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
+ 
+     int collapsedOptions = 0;
+ 
++    boolean canShowEpisodeComments() { return commentsAvailable; }
++
++    void setEpisodeCommentsAvailable(UUID itemId, TextUnderButton expectedButton, boolean available) {
++        if (!isAdded() || getView() == null || !mBaseItem.getId().equals(itemId) || commentsButton != expectedButton) return;
++        commentsAvailable = available;
++        commentsButton.setVisibility(available ? View.VISIBLE : View.GONE);
++        showMoreButtonIfNeeded();
++    }
++
+     void showMoreButtonIfNeeded() {
+         int visibleOptions = mDetailsOverviewRow.getVisibleActions();
+ 
+         List<TextUnderButton> actionsList = new ArrayList<>();
++        if (commentsAvailable && commentsButton != null) actionsList.add(commentsButton);
+         // added in order of priority (should match res/menu/menu_details_more.xml)
+         if (fileInfoButton != null) actionsList.add(fileInfoButton);
+         if (queueButton != null) actionsList.add(queueButton);
+diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragmentHelper.kt b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragmentHelper.kt
+index f5f0a7f24..109dec413 100644
+--- a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragmentHelper.kt
++++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragmentHelper.kt
+@@ -74,6 +74,9 @@ fun FullDetailsFragment.showDetailsMenu(
+ 	view: View,
+ 	baseItemDto: BaseItemDto,
+ ) = popupMenu(requireContext(), view) {
++	if (canShowEpisodeComments() && commentsButton?.isVisible == false) {
++		item(getString(R.string.episode_comments_title)) { openEpisodeComments() }
++	}
+ 	// for each button check if it exists (not-null) and is invisible (overflow prevention)
+ 	if (fileInfoButton?.isVisible == false) {
+ 		item(getString(R.string.file_info)) { MediaFileInfoDialogFragment.show(parentFragmentManager, mBaseItem) }
+@@ -104,6 +107,29 @@ fun FullDetailsFragment.showDetailsMenu(
+ 	}
+ }.showIfNotEmpty()
+ 
++fun FullDetailsFragment.discoverEpisodeComments() {
++	val api by inject<ApiClient>()
++	val itemId = mBaseItem.id
++	val button = commentsButton ?: return
++	viewLifecycleOwner.lifecycleScope.launch {
++		setEpisodeCommentsAvailable(itemId, button, EpisodeCommentsApi(api).isAvailable())
++	}
++}
++
++fun FullDetailsFragment.openEpisodeComments() {
++	val api by inject<ApiClient>()
++	val item = mBaseItem
++	val button = commentsButton ?: return
++	viewLifecycleOwner.lifecycleScope.launch {
++		// Recheck on selection in case the plugin was removed while details stayed open.
++		val available = EpisodeCommentsApi(api).isAvailable()
++		if (mBaseItem.id != item.id || commentsButton !== button) return@launch
++		setEpisodeCommentsAvailable(item.id, button, available)
++		if (available) EpisodeCommentsDialogFragment.show(parentFragmentManager, item)
++		else Toast.makeText(requireContext(), R.string.episode_comments_unavailable, Toast.LENGTH_SHORT).show()
++	}
++}
++
+ fun FullDetailsFragment.createFakeSeriesTimerBaseItemDto(timer: SeriesTimerInfoDto) = BaseItemDto(
+ 	id = requireNotNull(timer.id).toUUID(),
+ 	type = BaseItemKind.FOLDER,
+diff --git a/app/src/main/res/drawable/ic_episode_comments.xml b/app/src/main/res/drawable/ic_episode_comments.xml
+new file mode 100644
+index 000000000..5839c8e3d
+--- /dev/null
++++ b/app/src/main/res/drawable/ic_episode_comments.xml
+@@ -0,0 +1,3 @@
++<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
++    <path android:fillColor="#FFFFFFFF" android:pathData="M20,2H4c-1.1,0 -2,0.9 -2,2v18l4,-4h14c1.1,0 2,-0.9 2,-2V4c0,-1.1 -0.9,-2 -2,-2zM18,14H6v-2h12v2zM18,10H6V8h12v2z" />
++</vector>
+diff --git a/app/src/main/res/values/strings_episode_comments.xml b/app/src/main/res/values/strings_episode_comments.xml
+new file mode 100644
+index 000000000..df6c4daa1
+--- /dev/null
++++ b/app/src/main/res/values/strings_episode_comments.xml
+@@ -0,0 +1,31 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="episode_comments_title">Comments</string>
++    <string name="episode_comments_unavailable">Comments are unavailable on this server.</string>
++    <string name="episode_comments_back">Back to discussion</string>
++    <string name="episode_comments_sort">Sort comments</string>
++    <string name="episode_comments_sort_likes">Most liked</string>
++    <string name="episode_comments_sort_newest">Newest</string>
++    <string name="episode_comments_sort_oldest">Oldest</string>
++    <string name="episode_comments_sort_replies">Most replies</string>
++    <string name="episode_comments_previous">Previous page</string>
++    <string name="episode_comments_next">Next page</string>
++    <string name="episode_comments_attribution">Public discussions from Trakt · spoilers hidden until revealed</string>
++    <string name="episode_comments_loading">Loading discussion…</string>
++    <string name="episode_comments_empty">No comments on this page.</string>
++    <string name="episode_comments_page">Comments · page %1$d of %2$d · %3$d total</string>
++    <string name="episode_comments_replies_page">Replies · page %1$d of %2$d · %3$d total</string>
++    <string name="episode_comments_card">%1$s · %2$d likes · %3$d replies</string>
++    <string name="episode_comments_spoiler">Spoiler hidden. Open this comment and choose Reveal spoiler to read it.</string>
++    <string name="episode_comments_reveal">Reveal spoiler</string>
++    <string name="episode_comments_hide">Hide spoiler</string>
++    <string name="episode_comments_replies">Replies</string>
++    <string name="episode_comments_retry">Retry</string>
++    <string name="episode_comments_detail_title">%1$s · %2$s</string>
++    <string name="episode_comments_auth_error">Sign in again to read comments. Your Jellyfin user must have access to this episode.</string>
++    <string name="episode_comments_missing_error">Comments are unavailable. Check that the Episode Comments server plugin is installed and that this episode has matching provider IDs.</string>
++    <string name="episode_comments_mapping_error">This episode needs a matching override in the server plugin settings. Combined files and alternate episode orders may need an explicit match.</string>
++    <string name="episode_comments_rate_error">Trakt is receiving too many requests. Wait a little before retrying.</string>
++    <string name="episode_comments_config_error">Ask the server administrator to check the Episode Comments plugin’s Trakt Client ID.</string>
++    <string name="episode_comments_network_error">Could not load comments. Check your connection and try again.</string>
++</resources>
+diff --git a/app/src/test/kotlin/ui/itemdetail/EpisodeCommentsTests.kt b/app/src/test/kotlin/ui/itemdetail/EpisodeCommentsTests.kt
+new file mode 100644
+index 000000000..bf5ad699f
+--- /dev/null
++++ b/app/src/test/kotlin/ui/itemdetail/EpisodeCommentsTests.kt
+@@ -0,0 +1,95 @@
++package org.jellyfin.androidtv.ui.itemdetail
++
++import io.kotest.core.spec.style.FunSpec
++import io.kotest.matchers.shouldBe
++import io.mockk.coEvery
++import io.mockk.coVerify
++import io.mockk.mockk
++import org.jellyfin.sdk.api.client.ApiClient
++import org.jellyfin.sdk.api.client.RawResponse
++import org.jellyfin.sdk.api.client.exception.InvalidStatusException
++import java.util.UUID
++
++class EpisodeCommentsTests : FunSpec({
++	test("a configured compatible plugin enables comments") {
++		val api = mockk<ApiClient>()
++		coEvery { api.request(any(), any(), any(), any(), any()) } returns RawResponse(
++			"""{"pluginId":"79672a4d-f247-4370-9e41-f508bd891631","apiVersion":1,"configured":true,"provider":"Trakt"}""".toByteArray(), 200, emptyMap(),
++		)
++		EpisodeCommentsApi(api).isAvailable() shouldBe true
++		coVerify { api.request(pathTemplate = "/EpisodeComments/v1/Capabilities") }
++	}
++
++	test("removing the server plugin disables comments on the next check") {
++		val api = mockk<ApiClient>()
++		coEvery { api.request(any(), any(), any(), any(), any()) } returns RawResponse(
++			"""{"pluginId":"79672a4d-f247-4370-9e41-f508bd891631","apiVersion":1,"configured":true}""".toByteArray(), 200, emptyMap(),
++		)
++		val comments = EpisodeCommentsApi(api)
++		comments.isAvailable() shouldBe true
++		coEvery { api.request(any(), any(), any(), any(), any()) } throws InvalidStatusException(404)
++		comments.isAvailable() shouldBe false
++	}
++
++	test("absent unauthorized and unreachable plugin checks fail closed") {
++		for (status in listOf(401, 403, 404, 500, 503)) {
++			val api = mockk<ApiClient>()
++			coEvery { api.request(any(), any(), any(), any(), any()) } throws InvalidStatusException(status)
++			EpisodeCommentsApi(api).isAvailable() shouldBe false
++		}
++	}
++
++	test("unconfigured incompatible and malformed capabilities hide the feature") {
++		for (body in listOf(
++			"""{"pluginId":"79672a4d-f247-4370-9e41-f508bd891631","apiVersion":1,"configured":false}""",
++			"""{"pluginId":"79672a4d-f247-4370-9e41-f508bd891631","apiVersion":2,"configured":true}""",
++			"""{"pluginId":"different-plugin","apiVersion":1,"configured":true}""",
++			"<html>not found</html>",
++		)) {
++			val api = mockk<ApiClient>()
++			coEvery { api.request(any(), any(), any(), any(), any()) } returns RawResponse(body.toByteArray(), 200, emptyMap())
++			EpisodeCommentsApi(api).isAvailable() shouldBe false
++		}
++	}
++
++	test("spoiler flags and inline tags both hide previews") {
++		EpisodeComment(1, "reader", "secret", spoiler = true).containsSpoilers shouldBe true
++		EpisodeComment(1, "reader", "before [SpOiLeR]secret[/spoiler] after").containsSpoilers shouldBe true
++		EpisodeComment(1, "reader", "safe").containsSpoilers shouldBe false
++	}
++
++	test("comments use the current Jellyfin SDK session and versioned item route") {
++		val api = mockk<ApiClient>()
++		val itemId = UUID.randomUUID()
++		coEvery { api.request(any(), any(), any(), any(), any()) } returns RawResponse(
++			"""{"page":2,"pageCount":5,"totalItems":99,"match":{"episodeId":100},"comments":[{"id":77,"author":"reader","text":"safe","replyCount":2,"futureField":true}]}""".toByteArray(),
++			200, emptyMap(),
++		)
++		val page = EpisodeCommentsApi(api).getComments(itemId, "likes", 2)
++		page.page shouldBe 2
++		page.comments.single().replyCount shouldBe 2
++		coVerify {
++			api.request(
++				pathTemplate = "/EpisodeComments/v1/Items/{itemId}/Comments",
++				pathParameters = mapOf("itemId" to itemId),
++				queryParameters = mapOf("page" to 2, "limit" to 20, "sort" to "likes"),
++			)
++		}
++	}
++
++	test("reply pages include item context and omit unsupported sort") {
++		val api = mockk<ApiClient>()
++		val itemId = UUID.randomUUID()
++		coEvery { api.request(any(), any(), any(), any(), any()) } returns RawResponse(
++			"""{"page":3,"pageCount":3,"totalItems":45,"comments":[]}""".toByteArray(), 200, emptyMap(),
++		)
++		EpisodeCommentsApi(api).getComments(itemId, "likes", 3, 77).page shouldBe 3
++		coVerify {
++			api.request(
++				pathTemplate = "/EpisodeComments/v1/Items/{itemId}/Comments/{commentId}/Replies",
++				pathParameters = mapOf("itemId" to itemId, "commentId" to 77L),
++				queryParameters = mapOf("page" to 3, "limit" to 20),
++			)
++		}
++	}
++})

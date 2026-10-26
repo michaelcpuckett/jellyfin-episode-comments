@@ -1,0 +1,13 @@
+{
+  "guid": "79672a4d-f247-4370-9e41-f508bd891631",
+  "name": "Episode Comments",
+  "description": "Read-only Trakt episode comments and replies through an authenticated Jellyfin API.",
+  "overview": "Trakt episode discussions for compatible web, mobile and TV clients.",
+  "owner": "Episode Comments contributors",
+  "category": "General",
+  "version": "0.1.0.0",
+  "targetAbi": "12.0.0.0",
+  "status": "Active",
+  "autoUpdate": false,
+  "assemblies": ["Jellyfin.Plugin.EpisodeComments.dll"]
+}

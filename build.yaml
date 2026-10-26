@@ -1,0 +1,13 @@
+---
+name: "Episode Comments"
+guid: "79672a4d-f247-4370-9e41-f508bd891631"
+version: "0.1.0.0"
+targetAbi: "12.0.0.0"
+framework: "net10.0"
+overview: "Trakt episode discussions for compatible Jellyfin clients."
+description: "Read-only Trakt episode comments and replies through an authenticated Jellyfin API."
+category: "General"
+owner: "Episode Comments contributors"
+artifacts:
+  - "Jellyfin.Plugin.EpisodeComments.dll"
+changelog: "Initial server API, matching, cache, capability discovery and Android TV integration."
