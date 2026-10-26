@@ -2,7 +2,17 @@
 
 Date: October 26, 2026. Plugin version: **0.2.0.0**.
 
-## Automated checks completed
+## Android comment fixes
+
+- Selecting a preview on title details opens only its independent comment dialog. **OK** receives focus when that dialog opens. **Replies** opens the discussion only after the standalone comment closes; comments selected inside an existing discussion retain that discussion's navigation.
+- Missing or ambiguous title matches (HTTP 404/409) remove the preview row. The same response closes a top-level discussion quietly. Reply-specific errors remain visible. HTTP 502 still propagates to the retry UI; a successful empty discussion remains available.
+- Android suites: **16 passed, 0 failed** (12 discussion/API tests and 4 section/cast tests), including the three new missing-match, upstream-failure and successful-empty-response cases.
+- Combined stats APK build and focused unit tests completed successfully in **6 minutes 32 seconds**, including R8 minification and resource shrinking. The APK is **29,987,039 bytes**, includes all four architectures, and remains non-debuggable with `DEBUG=false` and `DEVELOPMENT=false`.
+- Package `org.jellyfin.androidtv.debug`, version code `200013`, version name `0.20.0-stats.13`, and certificate SHA-256 `5825be346f03aa4d364970042037075f8244ccfee348f39c857373cec7f192eb` are preserved.
+- The regenerated integration patch passes reverse application validation against the Android checkout. Source whitespace checks pass, and the checkout's normal index remains unchanged.
+- Reports use the `comment-fixes` suffix in `validation/`. These changes use the existing server plugin 0.2.0.0. Focus and dialog transitions have been reviewed in source and compiled; this build has not been installed on a physical TV by the agent.
+
+## Original 0.2 automated checks
 
 - Plugin Release build: .NET 10, Jellyfin.Controller and Jellyfin.Model 12.0.0; zero compiler warnings or errors.
 - Server suite: **42 passed, 0 failed**. Includes ASP.NET HTTP routing/authentication, current-user library lookups, capabilities, exact movie/show/episode matching, conflicting and ambiguous IDs, specials, alternate ordering, combined files, overrides, pagination, replies ownership by both media type and ID, caching, credential partitioning, rate limits and upstream failure handling. Catalog validation verifies the new ZIP plus retained historical package checksums.
@@ -20,4 +30,4 @@ Current machine-readable results are `validation/server-tests-0.2.trx`, `validat
 
 No running Jellyfin installation was changed and this updated APK was not installed on a TV by the agent. The new movie/series support and physical remote/focus behavior of the preview rows still need a live check against your server. The plugin and APK are provided as installable artifacts for that check.
 
-The Android app makes the integration optional: capability discovery is asynchronous, fails closed, and is repeated at selection. Removal after a discussion has already opened is handled by the dialog's error state; it does not affect playback.
+The Android app makes the integration optional: capability discovery is asynchronous, fails closed, and is repeated at selection. An unavailable top-level discussion closes quietly; other request failures use the dialog's error state. Playback remains independent.

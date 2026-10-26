@@ -35,14 +35,15 @@ The repository is hosted directly from the public GitHub `master` branch. GitHub
 
 The ZIP in `packages/` is for Jellyfin's catalog installer and contains files at its root. The manual ZIP generated in `dist/` includes the outer `EpisodeComments_0.2.0.0` folder. If manually using the catalog ZIP, create that plugin folder yourself and extract its contents inside it.
 
-To remove the plugin, uninstall it from **My Plugins** and restart Jellyfin. For manual removal, stop Jellyfin, remove only this plugin's versioned folder, then restart Jellyfin. Android TV hides Comments when the capability check fails. It rechecks when details load and immediately before opening the dialog. An already open dialog handles unavailable endpoints as an error with Retry; playback and other details features remain independent.
+To remove the plugin, uninstall it from **My Plugins** and restart Jellyfin. For manual removal, stop Jellyfin, remove only this plugin's versioned folder, then restart Jellyfin. Android TV hides Comments when the capability check fails. It rechecks when details load and immediately before opening the dialog. An already open top-level discussion closes quietly if its endpoint or title match disappears; connection failures retain Retry. Playback and other details features remain independent.
 
 ## Android TV changes
 
 Changes were made in `C:\Users\micha\sites\jellyfin-androidtv` without a commit. The accompanying patch includes the added files and changes to the episode details action list and overflow menu.
 
 - Episode details show **details/options → Next episode → Cast → Guest stars → Comments**, followed by optional chapters and additional parts. Cast contains regular actors from the parent series, supplemented by episode actors, deduplicated by person ID and excluding episode guest stars. Missing or unavailable cast metadata does not block other rows.
-- The Comments row shows up to five most-liked previews plus **View all comments**. It is a visible section rather than an action under More. Selecting a preview opens that comment, including spoiler reveal and replies; View all comments opens the full paginated discussion.
+- The Comments row shows up to five most-liked previews plus **View all comments**. Selecting a preview opens an independent comment dialog directly over title details, with **OK** focused by default. Closing it returns to title details. Selecting **Replies** closes that comment before opening its discussion. **View all comments** opens the full paginated discussion.
+- Titles without a matching Trakt ID, or with ambiguous matching IDs, hide the Comments section. Connection failures retain the retry message. A matched title with no comments still offers its empty discussion.
 - The app checks `/EpisodeComments/v1/Capabilities` using its active Jellyfin SDK client. It requires this plugin's ID, API version 1, `configured: true`, and the title's type in `supportedItemTypes`. Older capabilities without that field are treated as episode-only.
 - A missing, unconfigured, incompatible, unauthorized or unreachable plugin hides the section. Discovery is asynchronous and times out after 2.5 seconds. It is scoped to the current details view, item and adapter; no availability state is carried between servers or users.
 - A second check at selection handles removal while the details screen stays open. Movie and series sections appear only when the server advertises support for them.

@@ -1,9 +1,9 @@
 diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsApi.kt b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsApi.kt
 new file mode 100644
-index 000000000..012d15561
+index 000000000..ee02909f6
 --- /dev/null
 +++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsApi.kt
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,89 @@
 +package org.jellyfin.androidtv.ui.itemdetail
 +
 +import kotlinx.coroutines.CancellationException
@@ -13,6 +13,7 @@ index 000000000..012d15561
 +import kotlinx.serialization.Serializable
 +import kotlinx.serialization.json.Json
 +import org.jellyfin.sdk.api.client.ApiClient
++import org.jellyfin.sdk.api.client.exception.InvalidStatusException
 +import org.jellyfin.sdk.model.api.BaseItemKind
 +import java.util.UUID
 +
@@ -43,6 +44,13 @@ index 000000000..012d15561
 +
 +internal class EpisodeCommentsApi(private val api: ApiClient) {
 +	private val json = Json { ignoreUnknownKeys = true }
++
++	suspend fun getPreview(itemId: UUID): EpisodeCommentPage? = try {
++		getComments(itemId, "likes", 1)
++	} catch (error: InvalidStatusException) {
++		// An unmatched or ambiguous title has no discussion to display.
++		if (error.status == 404 || error.status == 409) null else throw error
++	}
 +
 +	suspend fun isAvailable(itemType: BaseItemKind? = BaseItemKind.EPISODE): Boolean = try {
 +		withTimeoutOrNull(2500) {
@@ -87,14 +95,15 @@ index 000000000..012d15561
 +}
 diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsDialogFragment.kt b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsDialogFragment.kt
 new file mode 100644
-index 000000000..cd4c65f3d
+index 000000000..46cc0114e
 --- /dev/null
 +++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsDialogFragment.kt
-@@ -0,0 +1,268 @@
+@@ -0,0 +1,300 @@
 +package org.jellyfin.androidtv.ui.itemdetail
 +
 +import android.app.AlertDialog
 +import android.app.Dialog
++import android.content.DialogInterface
 +import android.os.Bundle
 +import android.view.Gravity
 +import android.view.KeyEvent
@@ -127,7 +136,6 @@ index 000000000..cd4c65f3d
 +	private val api by inject<ApiClient>()
 +	private val locations = mutableListOf(DiscussionLocation())
 +	private var sort = "likes"
-+	private var initialCommentOpened = false
 +	private var loadJob: Job? = null
 +	private lateinit var comments: LinearLayout
 +	private lateinit var status: TextView
@@ -140,10 +148,12 @@ index 000000000..cd4c65f3d
 +	override fun onCreate(savedInstanceState: Bundle?) {
 +		super.onCreate(savedInstanceState)
 +		sort = savedInstanceState?.getString("sort") ?: "likes"
-+		initialCommentOpened = savedInstanceState?.getBoolean("initialCommentOpened") ?: false
 +		savedInstanceState?.getString("locations")?.let {
 +			locations.clear()
 +			locations.addAll(Json.decodeFromString<List<DiscussionLocation>>(it))
++		}
++		if (savedInstanceState == null) {
++			requireArguments().getLong("replyTo").takeIf { it > 0 }?.let { locations.add(DiscussionLocation(it)) }
 +		}
 +		parentFragmentManager.setFragmentResultListener(REPLIES_RESULT, this) { _, result ->
 +			locations.add(DiscussionLocation(result.getLong("commentId")))
@@ -154,7 +164,6 @@ index 000000000..cd4c65f3d
 +	override fun onSaveInstanceState(outState: Bundle) {
 +		super.onSaveInstanceState(outState)
 +		outState.putString("sort", sort)
-+		outState.putBoolean("initialCommentOpened", initialCommentOpened)
 +		outState.putString("locations", Json.encodeToString(locations))
 +	}
 +
@@ -213,10 +222,6 @@ index 000000000..cd4c65f3d
 +		super.onStart()
 +		dialog?.window?.setLayout((resources.displayMetrics.widthPixels * 0.86f).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
 +		load()
-+		if (!initialCommentOpened) {
-+			initialCommentOpened = true
-+			requireArguments().getString("initialComment")?.let { EpisodeCommentDetailDialogFragment.show(parentFragmentManager, Json.decodeFromString<EpisodeComment>(it)) }
-+		}
 +	}
 +
 +	private fun changePage(change: Int) {
@@ -259,6 +264,11 @@ index 000000000..cd4c65f3d
 +			} catch (error: CancellationException) {
 +				throw error
 +			} catch (error: Exception) {
++				val statusCode = (error as? InvalidStatusException)?.status
++				if (location.parentId == null && (statusCode == 404 || statusCode == 409)) {
++					dismissAllowingStateLoss()
++					return@launch
++				}
 +				Timber.w("Episode comments request failed (%s)", error.javaClass.simpleName)
 +				status.setText(when ((error as? InvalidStatusException)?.status) {
 +					401, 403 -> R.string.episode_comments_auth_error
@@ -288,15 +298,19 @@ index 000000000..cd4c65f3d
 +
 +		@JvmStatic
 +		fun show(manager: FragmentManager, item: BaseItemDto) {
-+			showComment(manager, item, null)
++			showDiscussion(manager, item.id, null)
 +		}
 +
-+		internal fun showComment(manager: FragmentManager, item: BaseItemDto, comment: EpisodeComment?) {
++		internal fun showReplies(manager: FragmentManager, itemId: UUID, commentId: Long) {
++			showDiscussion(manager, itemId, commentId)
++		}
++
++		private fun showDiscussion(manager: FragmentManager, itemId: UUID, parentId: Long?) {
 +			if (manager.isStateSaved || manager.findFragmentByTag(TAG) != null) return
 +			EpisodeCommentsDialogFragment().apply {
 +				arguments = Bundle().apply {
-+					putString("itemId", item.id.toString())
-+					if (comment != null) putString("initialComment", Json.encodeToString(comment))
++					putString("itemId", itemId.toString())
++					if (parentId != null) putLong("replyTo", parentId)
 +				}
 +			}.showNow(manager, TAG)
 +		}
@@ -305,6 +319,7 @@ index 000000000..cd4c65f3d
 +
 +class EpisodeCommentDetailDialogFragment : DialogFragment() {
 +	private var revealed = false
++	private var repliesRequested = false
 +
 +	override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
 +		val comment = Json.decodeFromString<EpisodeComment>(requireArguments().getString("comment")!!)
@@ -326,7 +341,8 @@ index 000000000..cd4c65f3d
 +			.setPositiveButton(android.R.string.ok, null)
 +		if (comment.containsSpoilers) builder.setNeutralButton(R.string.episode_comments_reveal, null)
 +		if (comment.replyCount > 0) builder.setNegativeButton(R.string.episode_comments_replies) { _, _ ->
-+			parentFragmentManager.setFragmentResult(EpisodeCommentsDialogFragment.REPLIES_RESULT, Bundle().apply { putLong("commentId", comment.id) })
++			if (requireArguments().containsKey("itemId")) repliesRequested = true
++			else parentFragmentManager.setFragmentResult(EpisodeCommentsDialogFragment.REPLIES_RESULT, Bundle().apply { putLong("commentId", comment.id) })
 +		}
 +		return builder.create().apply {
 +			setOnShowListener {
@@ -340,8 +356,21 @@ index 000000000..cd4c65f3d
 +						setText(if (revealed) R.string.episode_comments_hide else R.string.episode_comments_reveal)
 +					}
 +				}
-+				scroll.requestFocus()
++				getButton(AlertDialog.BUTTON_POSITIVE).requestFocus()
 +			}
++		}
++	}
++
++	override fun onDismiss(dialog: DialogInterface) {
++		// A preview opens independently. Only the explicit Replies action opens a discussion,
++		// after this comment dialog has closed.
++		val manager = if (repliesRequested) parentFragmentManager else null
++		super.onDismiss(dialog)
++		if (manager != null) {
++			repliesRequested = false
++			val itemId = UUID.fromString(requireArguments().getString("itemId"))
++			val comment = Json.decodeFromString<EpisodeComment>(requireArguments().getString("comment")!!)
++			EpisodeCommentsDialogFragment.showReplies(manager, itemId, comment.id)
 +		}
 +	}
 +
@@ -352,19 +381,30 @@ index 000000000..cd4c65f3d
 +
 +	companion object {
 +		internal fun show(manager: FragmentManager, comment: EpisodeComment) {
++			showDetail(manager, comment, null)
++		}
++
++		internal fun showFromDetails(manager: FragmentManager, itemId: UUID, comment: EpisodeComment) {
++			showDetail(manager, comment, itemId)
++		}
++
++		private fun showDetail(manager: FragmentManager, comment: EpisodeComment, itemId: UUID?) {
 +			if (manager.isStateSaved || manager.findFragmentByTag("episode-comment-detail") != null) return
 +			EpisodeCommentDetailDialogFragment().apply {
-+				arguments = Bundle().apply { putString("comment", Json.encodeToString(comment)) }
++				arguments = Bundle().apply {
++					putString("comment", Json.encodeToString(comment))
++					if (itemId != null) putString("itemId", itemId.toString())
++				}
 +			}.show(manager, "episode-comment-detail")
 +		}
 +	}
 +}
 diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeDetailsSections.kt b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeDetailsSections.kt
 new file mode 100644
-index 000000000..14f5eacee
+index 000000000..f7bff75a4
 --- /dev/null
 +++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeDetailsSections.kt
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,144 @@
 +package org.jellyfin.androidtv.ui.itemdetail
 +
 +import android.graphics.Color
@@ -479,15 +519,20 @@ index 000000000..14f5eacee
 +						Toast.makeText(requireContext(), R.string.episode_comments_unavailable, Toast.LENGTH_SHORT).show()
 +					}
 +				} else if (isCurrentDetailsAdapter(rows, item.id)) {
-+					EpisodeCommentsDialogFragment.showComment(parentFragmentManager, item, comment)
++					if (comment == null) EpisodeCommentsDialogFragment.show(parentFragmentManager, item)
++					else EpisodeCommentDetailDialogFragment.showFromDetails(parentFragmentManager, item.id, comment)
 +				}
 +			}
 +		}
 +		cards.add(DiscussionCard(getString(R.string.episode_comments_loading), getString(R.string.episode_comments_attribution)) { open() })
 +		insertSection(rows, row, item.type == BaseItemKind.EPISODE)
 +		try {
-+			val page = client.getComments(item.id, "likes", 1)
++			val page = client.getPreview(item.id)
 +			if (!isCurrentDetailsAdapter(rows, item.id)) return@launch
++			if (page == null) {
++				rows.remove(row)
++				return@launch
++			}
 +			val previews = page.comments.take(5).map { comment ->
 +				DiscussionCard(getString(R.string.episode_comments_card, comment.author, comment.likes, comment.replyCount),
 +					if (comment.containsSpoilers) getString(R.string.episode_comments_spoiler) else comment.text.take(300)) { open(comment) }
@@ -641,13 +686,14 @@ index 000000000..2cd631db7
 +</resources>
 diff --git a/app/src/test/kotlin/ui/itemdetail/EpisodeCommentsTests.kt b/app/src/test/kotlin/ui/itemdetail/EpisodeCommentsTests.kt
 new file mode 100644
-index 000000000..136877501
+index 000000000..a6e0305e7
 --- /dev/null
 +++ b/app/src/test/kotlin/ui/itemdetail/EpisodeCommentsTests.kt
-@@ -0,0 +1,116 @@
+@@ -0,0 +1,139 @@
 +package org.jellyfin.androidtv.ui.itemdetail
 +
 +import io.kotest.core.spec.style.FunSpec
++import io.kotest.assertions.throwables.shouldThrow
 +import io.kotest.matchers.shouldBe
 +import io.mockk.coEvery
 +import io.mockk.coVerify
@@ -659,6 +705,28 @@ index 000000000..136877501
 +import java.util.UUID
 +
 +class EpisodeCommentsTests : FunSpec({
++	test("unmatched and ambiguous titles have no comments preview") {
++		for (status in listOf(404, 409)) {
++			val api = mockk<ApiClient>()
++			coEvery { api.request(any(), any(), any(), any(), any()) } throws InvalidStatusException(status)
++			EpisodeCommentsApi(api).getPreview(UUID.randomUUID()) shouldBe null
++		}
++	}
++
++	test("connection and upstream errors are not mistaken for missing matches") {
++		val api = mockk<ApiClient>()
++		coEvery { api.request(any(), any(), any(), any(), any()) } throws InvalidStatusException(502)
++		shouldThrow<InvalidStatusException> { EpisodeCommentsApi(api).getPreview(UUID.randomUUID()) }.status shouldBe 502
++	}
++
++	test("a matched title with zero comments remains a valid empty discussion") {
++		val api = mockk<ApiClient>()
++		coEvery { api.request(any(), any(), any(), any(), any()) } returns RawResponse(
++			"""{"page":1,"pageCount":0,"totalItems":0,"comments":[]}""".toByteArray(), 200, emptyMap(),
++		)
++		EpisodeCommentsApi(api).getPreview(UUID.randomUUID())?.comments shouldBe emptyList()
++	}
++
 +	test("old episode-only server hides movie and series sections") {
 +		val api = mockk<ApiClient>()
 +		coEvery { api.request(any(), any(), any(), any(), any()) } returns RawResponse(

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.jellyfin.androidtv.ui.itemdetail.EpisodeDetailsSectionsTests" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-26T16:08:58.468Z" hostname="MEDIAMINIPC" time="0.089">
+  <properties/>
+  <testcase name="late Cast and Comments responses preserve Next Cast Guest Comments order" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeDetailsSectionsTests" time="0.011"/>
+  <testcase name="missing next episode and guest stars do not displace comments below extras" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeDetailsSectionsTests" time="0.005"/>
+  <testcase name="regular Cast includes series actors while keeping guest stars separate and deduplicated" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeDetailsSectionsTests" time="0.032"/>
+  <testcase name="episode actor metadata is usable when the parent series request fails" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeDetailsSectionsTests" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
