@@ -6,7 +6,26 @@ public sealed record CapabilitiesDto(
     [property: JsonPropertyName("pluginId")] string PluginId,
     [property: JsonPropertyName("apiVersion")] int ApiVersion,
     [property: JsonPropertyName("configured")] bool Configured,
+    [property: JsonPropertyName("provider")] string Provider,
+    [property: JsonPropertyName("supportedItemTypes")] IReadOnlyList<string> SupportedItemTypes);
+
+public sealed record MediaIdentity(Guid ItemId, string Type, Dictionary<string, string> ProviderIds);
+
+public sealed record MediaMatch(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("traktId")] long TraktId,
+    [property: JsonPropertyName("method")] string Method,
     [property: JsonPropertyName("provider")] string Provider);
+
+public sealed record MediaCommentPage(
+    [property: JsonPropertyName("itemId")] Guid ItemId,
+    [property: JsonPropertyName("match")] MediaMatch Match,
+    [property: JsonPropertyName("page")] int Page,
+    [property: JsonPropertyName("pageSize")] int PageSize,
+    [property: JsonPropertyName("pageCount")] int PageCount,
+    [property: JsonPropertyName("totalItems")] int TotalItems,
+    [property: JsonPropertyName("fetchedAt")] DateTimeOffset FetchedAt,
+    [property: JsonPropertyName("comments")] IReadOnlyList<CommentDto> Comments);
 
 public sealed record EpisodeIdentity(
     Guid ItemId, Dictionary<string, string> EpisodeIds, Dictionary<string, string> SeriesIds,

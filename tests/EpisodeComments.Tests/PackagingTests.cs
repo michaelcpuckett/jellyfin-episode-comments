@@ -16,8 +16,8 @@ public sealed class PackagingTests
         var catalog = JsonSerializer.Deserialize<PackageInfo[]>(File.ReadAllText(Path.Combine(root, "manifest.json")))!;
         var plugin = Assert.Single(catalog);
         Assert.Equal(Guid.Parse("79672a4d-f247-4370-9e41-f508bd891631"), plugin.Id);
-        var version = Assert.Single(plugin.Versions);
-        Assert.Equal("0.1.0.0", version.Version);
+        var version = plugin.Versions.First();
+        Assert.Equal("0.2.0.0", version.Version);
         Assert.Equal("12.0.0.0", version.TargetAbi);
         var uri = new Uri(version.SourceUrl!);
         Assert.Equal("https", uri.Scheme);
@@ -30,6 +30,11 @@ public sealed class PackagingTests
         Assert.Equal(new[] { "Jellyfin.Plugin.EpisodeComments.dll", "LICENSE", "meta.json" }, archive.Entries.Select(e => e.FullName).Order().ToArray());
         Assert.Equal(File.ReadAllBytes(Path.Combine(root, "Jellyfin.Plugin.EpisodeComments.dll")).LongLength,
             archive.GetEntry("Jellyfin.Plugin.EpisodeComments.dll")!.Length);
+        foreach (var historical in plugin.Versions.Skip(1))
+        {
+            var historicalZip = Path.Combine(root, "packages", Path.GetFileName(new Uri(historical.SourceUrl!).AbsolutePath));
+            Assert.Equal(Convert.ToHexString(MD5.HashData(File.ReadAllBytes(historicalZip))).ToLowerInvariant(), historical.Checksum);
+        }
     }
 
     private static string RepositoryRoot([CallerFilePath] string source = "") =>

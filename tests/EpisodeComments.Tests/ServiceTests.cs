@@ -26,7 +26,7 @@ public sealed class Harness : IDisposable
             return Respond(request);
         })), () => Config, Clock);
         Resolver = new(Trakt, () => Config);
-        Comments = new(Trakt, Resolver);
+        Comments = new(Trakt, Resolver, new MediaResolver(Trakt));
     }
     public static EpisodeIdentity Item() => new(Guid.NewGuid(), new() { ["Tvdb"] = "999" }, new() { ["Tmdb"] = "42" }, 1, 1, null, null, null);
     public const string Lookup = """[{"type":"episode","episode":{"season":1,"number":1,"ids":{"trakt":100}},"show":{"ids":{"trakt":10,"tmdb":42}}}]""";

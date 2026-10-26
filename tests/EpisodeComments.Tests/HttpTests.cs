@@ -3,6 +3,8 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Jellyfin.Plugin.EpisodeComments;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authentication;
@@ -55,6 +57,7 @@ public sealed class HttpTests
         Assert.Equal("79672a4d-f247-4370-9e41-f508bd891631", json.RootElement.GetProperty("pluginId").GetString());
         Assert.Equal(1, json.RootElement.GetProperty("apiVersion").GetInt32());
         Assert.True(json.RootElement.GetProperty("configured").GetBoolean());
+        Assert.Equal(new[] { "Episode", "Movie", "Series" }, json.RootElement.GetProperty("supportedItemTypes").EnumerateArray().Select(x => x.GetString()).ToArray());
         Assert.DoesNotContain(h.Config.TraktClientId, body);
         h.Config.TraktClientId = "";
         using var unconfigured = JsonDocument.Parse(await client.GetStringAsync("/EpisodeComments/v1/Capabilities"));
@@ -88,7 +91,7 @@ public sealed class HttpTests
     {
         using var h = new Harness();
         var library = new Mock<ILibraryManager>(MockBehavior.Strict);
-        library.Setup(x => x.GetItemById<Episode>(ItemId, UserId)).Returns((Episode?)null);
+        library.Setup(x => x.GetItemById<BaseItem>(ItemId, UserId)).Returns((BaseItem?)null);
         using var server = Server(h, library);
         using var client = server.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Session", UserId.ToString());
@@ -103,7 +106,7 @@ public sealed class HttpTests
         using var h = new Harness();
         var library = new Mock<ILibraryManager>(MockBehavior.Strict);
         var seriesId = Guid.NewGuid();
-        library.Setup(x => x.GetItemById<Episode>(ItemId, UserId)).Returns(new Episode
+        library.Setup(x => x.GetItemById<BaseItem>(ItemId, UserId)).Returns(new Episode
         {
             Id = ItemId, SeriesId = seriesId, ProviderIds = new() { ["Tvdb"] = "999" }, ParentIndexNumber = 1, IndexNumber = 1
         });
@@ -126,7 +129,7 @@ public sealed class HttpTests
     {
         using var h = new Harness();
         var library = new Mock<ILibraryManager>(MockBehavior.Strict);
-        library.Setup(x => x.GetItemById<Episode>(ItemId, UserId)).Returns(new Episode { Id = ItemId, ProviderIds = new() { ["Tvdb"] = "999" } });
+        library.Setup(x => x.GetItemById<BaseItem>(ItemId, UserId)).Returns(new Episode { Id = ItemId, ProviderIds = new() { ["Tvdb"] = "999" } });
         library.Setup(x => x.GetItemById<Series>(Guid.Empty, UserId)).Returns((Series?)null);
         h.Respond = _ => new(HttpStatusCode.TooManyRequests);
         using var server = Server(h, library);
@@ -138,6 +141,28 @@ public sealed class HttpTests
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("trakt_rate_limited", body);
         Assert.DoesNotContain(h.Config.TraktClientId, body);
+    }
+
+    [Theory]
+    [InlineData("movie", "movies")]
+    [InlineData("show", "shows")]
+    public async Task MovieAndSeriesRoutesRequireCurrentUserAndReturnTheirOwnDiscussions(string type, string path)
+    {
+        using var h = new Harness();
+        var library = new Mock<ILibraryManager>(MockBehavior.Strict);
+        BaseItem item = type == "movie" ? new Movie { Id = ItemId, ProviderIds = new() { ["Tmdb"] = "42" } }
+            : new Series { Id = ItemId, ProviderIds = new() { ["Tmdb"] = "42" } };
+        library.Setup(x => x.GetItemById<BaseItem>(ItemId, UserId)).Returns(item);
+        h.Respond = r => r.RequestUri!.AbsolutePath.StartsWith("/search/")
+            ? Harness.Json("""[{"type":"KIND","KIND":{"ids":{"trakt":123,"tmdb":42}}}]""".Replace("KIND", type))
+            : Harness.Json(Harness.Comment);
+        using var server = Server(h, library);
+        using var client = server.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Session", UserId.ToString());
+        using var json = JsonDocument.Parse(await client.GetStringAsync($"/EpisodeComments/v1/Items/{ItemId}/Comments"));
+        Assert.Equal(type, json.RootElement.GetProperty("match").GetProperty("type").GetString());
+        Assert.Equal($"/{path}/123/comments/likes?page=1&limit=20", h.Paths.Last());
+        library.VerifyAll();
     }
 
     private sealed class TestAuth(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)

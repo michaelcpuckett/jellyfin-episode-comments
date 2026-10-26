@@ -1,0 +1,348 @@
+Type-safe project accessors is an incubating feature.
+Project accessors enabled, but root project name not explicitly set for 'buildSrc'. Checking out the project in different folders will impact the generated code and implicitly the buildscript classpath, breaking caching.
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin UP-TO-DATE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+
+> Configure project :app
+WARNING: BuildType(stats): resValue 'string/app_id' value is being replaced.
+Add android.sync.suppressAgpWarnings=RES_VALUE_REPLACED to the gradle.properties file to suppress this warning.
+WARNING: BuildType(stats): resValue 'string/app_search_suggest_authority' value is being replaced.
+Add android.sync.suppressAgpWarnings=RES_VALUE_REPLACED to the gradle.properties file to suppress this warning.
+WARNING: BuildType(stats): resValue 'string/app_search_suggest_intent_data' value is being replaced.
+Add android.sync.suppressAgpWarnings=RES_VALUE_REPLACED to the gradle.properties file to suppress this warning.
+WARNING: BuildType(stats): resValue 'string/app_name' value is being replaced.
+Add android.sync.suppressAgpWarnings=RES_VALUE_REPLACED to the gradle.properties file to suppress this warning.
+Configuration 'statsCompileClasspath' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+Configuration 'statsRuntimeClasspath' was resolved during configuration time.
+This is a build performance and scalability issue.
+See https://github.com/gradle/gradle/issues/2298
+Run with --info for a stacktrace.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preStatsBuild UP-TO-DATE
+> Task :app:mergeStatsJniLibFolders UP-TO-DATE
+> Task :design:preBuild UP-TO-DATE
+> Task :design:preReleaseBuild UP-TO-DATE
+> Task :design:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :design:mergeReleaseNativeLibs NO-SOURCE
+> Task :design:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :preference:preBuild UP-TO-DATE
+> Task :preference:preReleaseBuild UP-TO-DATE
+> Task :preference:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :preference:mergeReleaseNativeLibs NO-SOURCE
+> Task :preference:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :playback:core:preBuild UP-TO-DATE
+> Task :playback:core:preReleaseBuild UP-TO-DATE
+> Task :playback:core:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :playback:core:mergeReleaseNativeLibs NO-SOURCE
+> Task :playback:core:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :playback:jellyfin:preBuild UP-TO-DATE
+> Task :playback:jellyfin:preReleaseBuild UP-TO-DATE
+> Task :playback:jellyfin:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :playback:jellyfin:mergeReleaseNativeLibs NO-SOURCE
+> Task :playback:jellyfin:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :playback:media3:exoplayer:preBuild UP-TO-DATE
+> Task :playback:media3:exoplayer:preReleaseBuild UP-TO-DATE
+> Task :playback:media3:exoplayer:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :playback:media3:exoplayer:mergeReleaseNativeLibs NO-SOURCE
+> Task :playback:media3:exoplayer:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :playback:media3:session:preBuild UP-TO-DATE
+> Task :playback:media3:session:preReleaseBuild UP-TO-DATE
+> Task :playback:media3:session:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :playback:media3:session:mergeReleaseNativeLibs NO-SOURCE
+> Task :playback:media3:session:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :app:mergeStatsNativeLibs UP-TO-DATE
+> Task :app:stripStatsDebugSymbols UP-TO-DATE
+> Task :app:extractStatsNativeSymbolTables UP-TO-DATE
+> Task :app:mergeStatsNativeDebugMetadata NO-SOURCE
+> Task :design:prepareReleaseArtProfile UP-TO-DATE
+> Task :preference:prepareReleaseArtProfile UP-TO-DATE
+> Task :playback:core:prepareReleaseArtProfile UP-TO-DATE
+> Task :playback:jellyfin:prepareReleaseArtProfile UP-TO-DATE
+> Task :playback:media3:exoplayer:prepareReleaseArtProfile UP-TO-DATE
+> Task :playback:media3:session:prepareReleaseArtProfile UP-TO-DATE
+> Task :app:mergeStatsArtProfile UP-TO-DATE
+> Task :app:expandStatsL8ArtProfileWildcards UP-TO-DATE
+> Task :design:generateReleaseResources UP-TO-DATE
+> Task :design:packageReleaseResources UP-TO-DATE
+> Task :design:processReleaseNavigationResources UP-TO-DATE
+> Task :design:parseReleaseLocalResources UP-TO-DATE
+> Task :design:generateReleaseRFile UP-TO-DATE
+> Task :design:compileReleaseKotlin UP-TO-DATE
+> Task :design:javaPreCompileRelease UP-TO-DATE
+> Task :design:compileReleaseJavaWithJavac NO-SOURCE
+> Task :design:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :design:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :playback:core:generateReleaseResources UP-TO-DATE
+> Task :playback:core:packageReleaseResources UP-TO-DATE
+> Task :playback:core:processReleaseNavigationResources UP-TO-DATE
+> Task :playback:core:parseReleaseLocalResources UP-TO-DATE
+> Task :playback:core:generateReleaseRFile UP-TO-DATE
+> Task :playback:core:compileReleaseKotlin UP-TO-DATE
+> Task :playback:core:javaPreCompileRelease UP-TO-DATE
+> Task :playback:core:compileReleaseJavaWithJavac NO-SOURCE
+> Task :playback:core:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :playback:jellyfin:generateReleaseResources UP-TO-DATE
+> Task :playback:jellyfin:packageReleaseResources UP-TO-DATE
+> Task :playback:jellyfin:processReleaseNavigationResources UP-TO-DATE
+> Task :playback:jellyfin:parseReleaseLocalResources UP-TO-DATE
+> Task :playback:jellyfin:generateReleaseRFile UP-TO-DATE
+> Task :playback:jellyfin:compileReleaseKotlin UP-TO-DATE
+> Task :playback:jellyfin:javaPreCompileRelease UP-TO-DATE
+> Task :playback:jellyfin:compileReleaseJavaWithJavac NO-SOURCE
+> Task :playback:jellyfin:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :playback:jellyfin:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :playback:media3:exoplayer:generateReleaseResources UP-TO-DATE
+> Task :playback:media3:exoplayer:packageReleaseResources UP-TO-DATE
+> Task :playback:media3:exoplayer:processReleaseNavigationResources UP-TO-DATE
+> Task :playback:media3:exoplayer:parseReleaseLocalResources UP-TO-DATE
+> Task :playback:media3:exoplayer:generateReleaseRFile UP-TO-DATE
+> Task :playback:media3:exoplayer:compileReleaseKotlin UP-TO-DATE
+> Task :playback:media3:exoplayer:javaPreCompileRelease UP-TO-DATE
+> Task :playback:media3:exoplayer:compileReleaseJavaWithJavac NO-SOURCE
+> Task :playback:media3:exoplayer:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :playback:media3:exoplayer:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :playback:media3:session:generateReleaseResources UP-TO-DATE
+> Task :playback:media3:session:packageReleaseResources UP-TO-DATE
+> Task :playback:media3:session:processReleaseNavigationResources UP-TO-DATE
+> Task :playback:media3:session:parseReleaseLocalResources UP-TO-DATE
+> Task :playback:media3:session:generateReleaseRFile UP-TO-DATE
+> Task :playback:media3:session:compileReleaseKotlin UP-TO-DATE
+> Task :playback:media3:session:javaPreCompileRelease UP-TO-DATE
+> Task :playback:media3:session:compileReleaseJavaWithJavac NO-SOURCE
+> Task :playback:media3:session:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :playback:media3:session:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :playback:core:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :playback:core:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :preference:dataBindingMergeDependencyArtifactsRelease UP-TO-DATE
+> Task :preference:generateReleaseResources UP-TO-DATE
+> Task :preference:packageReleaseResources UP-TO-DATE
+> Task :preference:processReleaseNavigationResources UP-TO-DATE
+> Task :preference:parseReleaseLocalResources UP-TO-DATE
+> Task :preference:dataBindingGenBaseClassesRelease UP-TO-DATE
+> Task :preference:generateReleaseRFile UP-TO-DATE
+> Task :preference:compileReleaseKotlin UP-TO-DATE
+> Task :preference:javaPreCompileRelease UP-TO-DATE
+> Task :preference:compileReleaseJavaWithJavac NO-SOURCE
+> Task :preference:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :preference:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :app:checkStatsDuplicateClasses UP-TO-DATE
+> Task :app:dataBindingMergeDependencyArtifactsStats UP-TO-DATE
+> Task :app:generateStatsResValues UP-TO-DATE
+> Task :app:generateStatsResources UP-TO-DATE
+> Task :app:prepareLibraryDefinitionsStats UP-TO-DATE
+> Task :app:mergeStatsResources UP-TO-DATE
+> Task :app:packageStatsResources UP-TO-DATE
+> Task :app:processStatsNavigationResources UP-TO-DATE
+> Task :app:parseStatsLocalResources UP-TO-DATE
+> Task :app:dataBindingGenBaseClassesStats UP-TO-DATE
+> Task :app:generateStatsBuildConfig UP-TO-DATE
+> Task :app:generateStatsRFile UP-TO-DATE
+> Task :design:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :preference:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :playback:jellyfin:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :playback:media3:exoplayer:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :playback:media3:session:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :app:compileStatsKotlin UP-TO-DATE
+> Task :app:javaPreCompileStats UP-TO-DATE
+
+> Task :app:compileStatsJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :design:writeReleaseAarMetadata UP-TO-DATE
+> Task :preference:writeReleaseAarMetadata UP-TO-DATE
+> Task :playback:core:writeReleaseAarMetadata UP-TO-DATE
+> Task :playback:jellyfin:writeReleaseAarMetadata UP-TO-DATE
+> Task :playback:media3:exoplayer:writeReleaseAarMetadata UP-TO-DATE
+> Task :playback:media3:session:writeReleaseAarMetadata UP-TO-DATE
+> Task :app:checkStatsAarMetadata UP-TO-DATE
+> Task :app:mapStatsSourceSetPaths
+> Task :app:compileStatsNavigationResources UP-TO-DATE
+> Task :app:createStatsCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksStats UP-TO-DATE
+> Task :design:extractDeepLinksRelease UP-TO-DATE
+> Task :design:processReleaseManifest UP-TO-DATE
+> Task :preference:extractDeepLinksRelease UP-TO-DATE
+> Task :preference:processReleaseManifest UP-TO-DATE
+> Task :playback:core:extractDeepLinksRelease UP-TO-DATE
+> Task :playback:core:processReleaseManifest UP-TO-DATE
+> Task :playback:jellyfin:extractDeepLinksRelease UP-TO-DATE
+> Task :playback:jellyfin:processReleaseManifest UP-TO-DATE
+> Task :playback:media3:exoplayer:extractDeepLinksRelease UP-TO-DATE
+> Task :playback:media3:exoplayer:processReleaseManifest UP-TO-DATE
+> Task :playback:media3:session:extractDeepLinksRelease UP-TO-DATE
+> Task :playback:media3:session:processReleaseManifest UP-TO-DATE
+> Task :app:processStatsMainManifest UP-TO-DATE
+> Task :app:processStatsManifest UP-TO-DATE
+> Task :app:processStatsManifestForPackage UP-TO-DATE
+> Task :design:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :design:compileReleaseLibraryResources UP-TO-DATE
+> Task :preference:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :preference:compileReleaseLibraryResources UP-TO-DATE
+> Task :playback:core:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :playback:core:compileReleaseLibraryResources UP-TO-DATE
+> Task :playback:jellyfin:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :playback:jellyfin:compileReleaseLibraryResources UP-TO-DATE
+> Task :playback:media3:exoplayer:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :playback:media3:exoplayer:compileReleaseLibraryResources UP-TO-DATE
+> Task :playback:media3:session:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :playback:media3:session:compileReleaseLibraryResources UP-TO-DATE
+> Task :design:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :preference:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :playback:core:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :playback:jellyfin:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :playback:media3:exoplayer:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :playback:media3:session:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :app:extractProguardFiles UP-TO-DATE
+> Task :app:processStatsJavaRes
+> Task :design:processReleaseJavaRes UP-TO-DATE
+> Task :preference:processReleaseJavaRes UP-TO-DATE
+> Task :playback:core:processReleaseJavaRes UP-TO-DATE
+> Task :playback:jellyfin:processReleaseJavaRes UP-TO-DATE
+> Task :playback:media3:exoplayer:processReleaseJavaRes UP-TO-DATE
+> Task :playback:media3:session:processReleaseJavaRes UP-TO-DATE
+> Task :app:mergeStatsStartupProfile UP-TO-DATE
+> Task :app:generateStatsAssets UP-TO-DATE
+> Task :design:generateReleaseAssets UP-TO-DATE
+> Task :design:mergeReleaseAssets UP-TO-DATE
+> Task :preference:generateReleaseAssets UP-TO-DATE
+> Task :preference:mergeReleaseAssets UP-TO-DATE
+> Task :playback:core:generateReleaseAssets UP-TO-DATE
+> Task :playback:core:mergeReleaseAssets UP-TO-DATE
+> Task :playback:jellyfin:generateReleaseAssets UP-TO-DATE
+> Task :playback:jellyfin:mergeReleaseAssets UP-TO-DATE
+> Task :playback:media3:exoplayer:generateReleaseAssets UP-TO-DATE
+> Task :playback:media3:exoplayer:mergeReleaseAssets UP-TO-DATE
+> Task :playback:media3:session:generateReleaseAssets UP-TO-DATE
+> Task :playback:media3:session:mergeReleaseAssets UP-TO-DATE
+> Task :app:mergeStatsAssets UP-TO-DATE
+> Task :app:compressStatsAssets UP-TO-DATE
+> Task :app:extractStatsVersionControlInfo UP-TO-DATE
+> Task :design:createFullJarRelease UP-TO-DATE
+> Task :design:extractProguardFiles UP-TO-DATE
+> Task :design:generateReleaseLintModel UP-TO-DATE
+> Task :design:prepareLintJarForPublish UP-TO-DATE
+> Task :preference:createFullJarRelease UP-TO-DATE
+> Task :preference:extractProguardFiles UP-TO-DATE
+> Task :preference:generateReleaseLintModel UP-TO-DATE
+> Task :preference:prepareLintJarForPublish UP-TO-DATE
+> Task :playback:core:createFullJarRelease UP-TO-DATE
+> Task :playback:core:extractProguardFiles UP-TO-DATE
+> Task :playback:core:generateReleaseLintModel UP-TO-DATE
+> Task :playback:core:prepareLintJarForPublish UP-TO-DATE
+> Task :playback:jellyfin:createFullJarRelease UP-TO-DATE
+> Task :playback:jellyfin:extractProguardFiles UP-TO-DATE
+> Task :playback:jellyfin:generateReleaseLintModel UP-TO-DATE
+> Task :playback:jellyfin:prepareLintJarForPublish UP-TO-DATE
+> Task :playback:media3:exoplayer:createFullJarRelease UP-TO-DATE
+> Task :playback:media3:exoplayer:extractProguardFiles UP-TO-DATE
+> Task :playback:media3:exoplayer:generateReleaseLintModel UP-TO-DATE
+> Task :playback:media3:exoplayer:prepareLintJarForPublish UP-TO-DATE
+> Task :playback:media3:session:createFullJarRelease UP-TO-DATE
+> Task :playback:media3:session:extractProguardFiles UP-TO-DATE
+> Task :playback:media3:session:generateReleaseLintModel UP-TO-DATE
+> Task :playback:media3:session:prepareLintJarForPublish UP-TO-DATE
+> Task :app:generateStatsLintVitalReportModel
+> Task :preference:checkReleaseAarMetadata UP-TO-DATE
+> Task :preference:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :preference:extractReleaseAnnotations UP-TO-DATE
+> Task :preference:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :preference:mergeReleaseJavaResource UP-TO-DATE
+> Task :preference:syncReleaseLibJars UP-TO-DATE
+> Task :preference:bundleReleaseLocalLintAar UP-TO-DATE
+> Task :design:checkReleaseAarMetadata UP-TO-DATE
+> Task :design:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :design:extractReleaseAnnotations UP-TO-DATE
+> Task :design:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :design:mergeReleaseJavaResource UP-TO-DATE
+> Task :design:syncReleaseLibJars UP-TO-DATE
+> Task :design:bundleReleaseLocalLintAar UP-TO-DATE
+> Task :playback:jellyfin:checkReleaseAarMetadata UP-TO-DATE
+> Task :playback:jellyfin:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :playback:jellyfin:extractReleaseAnnotations UP-TO-DATE
+> Task :playback:jellyfin:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :playback:jellyfin:mergeReleaseJavaResource UP-TO-DATE
+> Task :playback:jellyfin:syncReleaseLibJars UP-TO-DATE
+> Task :playback:jellyfin:bundleReleaseLocalLintAar UP-TO-DATE
+> Task :playback:media3:exoplayer:checkReleaseAarMetadata UP-TO-DATE
+> Task :playback:media3:exoplayer:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :playback:media3:exoplayer:extractReleaseAnnotations UP-TO-DATE
+> Task :playback:media3:exoplayer:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :playback:media3:exoplayer:mergeReleaseJavaResource UP-TO-DATE
+> Task :playback:media3:exoplayer:syncReleaseLibJars UP-TO-DATE
+> Task :playback:media3:exoplayer:bundleReleaseLocalLintAar UP-TO-DATE
+> Task :playback:media3:session:checkReleaseAarMetadata UP-TO-DATE
+> Task :playback:media3:session:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :playback:media3:session:extractReleaseAnnotations UP-TO-DATE
+> Task :playback:media3:session:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :playback:media3:session:mergeReleaseJavaResource UP-TO-DATE
+> Task :playback:media3:session:syncReleaseLibJars UP-TO-DATE
+> Task :playback:media3:session:bundleReleaseLocalLintAar UP-TO-DATE
+> Task :playback:core:checkReleaseAarMetadata UP-TO-DATE
+> Task :playback:core:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :playback:core:extractReleaseAnnotations UP-TO-DATE
+> Task :playback:core:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :playback:core:mergeReleaseJavaResource UP-TO-DATE
+> Task :playback:core:syncReleaseLibJars UP-TO-DATE
+> Task :playback:core:bundleReleaseLocalLintAar UP-TO-DATE
+> Task :design:lintVitalAnalyzeRelease UP-TO-DATE
+> Task :design:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :preference:lintVitalAnalyzeRelease UP-TO-DATE
+> Task :preference:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :playback:core:lintVitalAnalyzeRelease UP-TO-DATE
+> Task :playback:core:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :playback:jellyfin:lintVitalAnalyzeRelease UP-TO-DATE
+> Task :playback:jellyfin:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :playback:media3:exoplayer:lintVitalAnalyzeRelease UP-TO-DATE
+> Task :playback:media3:exoplayer:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :playback:media3:session:lintVitalAnalyzeRelease UP-TO-DATE
+> Task :playback:media3:session:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :design:generateReleaseLintVitalModel UP-TO-DATE
+> Task :preference:generateReleaseLintVitalModel UP-TO-DATE
+> Task :playback:core:generateReleaseLintVitalModel UP-TO-DATE
+> Task :playback:jellyfin:generateReleaseLintVitalModel UP-TO-DATE
+> Task :playback:media3:exoplayer:generateReleaseLintVitalModel UP-TO-DATE
+> Task :playback:media3:session:generateReleaseLintVitalModel UP-TO-DATE
+> Task :app:validateSigningStats UP-TO-DATE
+> Task :app:writeStatsAppMetadata UP-TO-DATE
+> Task :app:writeStatsSigningConfigVersions UP-TO-DATE
+> Task :app:mergeStatsJavaResource
+> Task :app:processStatsResources
+> Task :app:mergeStatsGeneratedProguardFiles UP-TO-DATE
+> Task :app:expandStatsArtProfileWildcards
+> Task :app:produceStatsComposeMapping
+> Task :app:reportStatsComposeMappingErrors
+> Task :app:lintVitalAnalyzeStats
+> Task :app:minifyStatsWithR8
+> Task :app:lintVitalReportStats
+> Task :app:lintVitalStats
+> Task :app:convertShrunkResourcesToBinaryStats
+> Task :app:optimizeStatsResources
+> Task :app:l8DexDesugarLibStats
+> Task :app:mergeStatsComposeMapping
+> Task :app:compileStatsArtProfile
+> Task :app:packageStats
+> Task :app:createStatsApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleStats
+
+[Incubating] Problems report is available at: file:///C:/Users/micha/sites/jellyfin-androidtv/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.8.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 7m 8s
+271 actionable tasks: 19 executed, 252 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.8.2/userguide/configuration_cache_enabling.html

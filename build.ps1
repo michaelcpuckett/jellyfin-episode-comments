@@ -18,20 +18,27 @@ $metadata = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'meta.json') -Raw 
 $assemblyVersion = [System.Reflection.AssemblyName]::GetAssemblyName($dll).Version.ToString()
 if ($assemblyVersion -ne $metadata.version) { throw 'DLL version and meta.json version disagree.' }
 # Keep the folder-wrapped archive for manual extraction into the plugins directory.
-$package = Join-Path $PSScriptRoot 'dist/EpisodeComments_0.1.0.0'
+$shortVersion = [version]::Parse($metadata.version).ToString(3)
+$package = Join-Path $PSScriptRoot "dist/EpisodeComments_$($metadata.version)"
 New-Item -ItemType Directory -Force -Path $package | Out-Null
 Copy-Item -LiteralPath $dll -Destination $package -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'meta.json') -Destination $package -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'LICENSE') -Destination $package -Force
-$zip = Join-Path $PSScriptRoot 'dist/EpisodeComments-jellyfin12-0.1.0.zip'
+$zip = Join-Path $PSScriptRoot "dist/EpisodeComments-jellyfin12-$shortVersion.zip"
 Compress-Archive -LiteralPath $package -DestinationPath $zip -Force
 
 # Jellyfin's catalog installer creates its own plugin directory, so this ZIP must be flat.
 $catalogDirectory = Join-Path $PSScriptRoot 'packages'
 New-Item -ItemType Directory -Force -Path $catalogDirectory | Out-Null
-$catalogName = 'EpisodeComments-jellyfin12-0.1.0.zip'
+$catalogName = "EpisodeComments-jellyfin12-$shortVersion.zip"
 $catalogZip = Join-Path $catalogDirectory $catalogName
 Compress-Archive -LiteralPath @($dll, (Join-Path $PSScriptRoot 'meta.json'), (Join-Path $PSScriptRoot 'LICENSE')) -DestinationPath $catalogZip -Force
+$previousVersions = @()
+$manifestPath = Join-Path $PSScriptRoot 'manifest.json'
+if (Test-Path -LiteralPath $manifestPath) {
+    $previousCatalog = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $previousVersions = @($previousCatalog | Where-Object { $_.guid -eq $metadata.guid } | ForEach-Object { $_.versions } | Where-Object { $_.version -ne $metadata.version })
+}
 $manifest = @(
     [ordered]@{
         guid = $metadata.guid
@@ -43,14 +50,14 @@ $manifest = @(
         versions = @(
             [ordered]@{
                 version = $metadata.version
-                changelog = 'Initial read-only Trakt comments API and optional Android TV integration.'
+                changelog = 'Movie and series discussions, backwards-compatible episode API, and Android TV comment previews with a regular Cast row.'
                 targetAbi = $metadata.targetAbi
                 sourceUrl = "https://raw.githubusercontent.com/$Repository/$Branch/packages/$catalogName"
                 # Jellyfin's catalog checksum field specifically requires MD5.
                 checksum = (Get-FileHash -LiteralPath $catalogZip -Algorithm MD5).Hash.ToLowerInvariant()
                 timestamp = (Get-Item -LiteralPath $dll).LastWriteTimeUtc.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
             }
-        )
+        ) + $previousVersions
     }
 )
 ConvertTo-Json -InputObject $manifest -Depth 8 | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'manifest.json') -Encoding utf8

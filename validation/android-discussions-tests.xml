@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.jellyfin.androidtv.ui.itemdetail.EpisodeCommentsTests" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-26T15:19:32.111Z" hostname="MEDIAMINIPC" time="2.631">
+  <properties/>
+  <testcase name="old episode-only server hides movie and series sections" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeCommentsTests" time="2.231"/>
+  <testcase name="new server advertises movie and series support without enabling unrelated item types" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeCommentsTests" time="0.022"/>
+  <testcase name="a configured compatible plugin enables comments" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeCommentsTests" time="0.041"/>
+  <testcase name="removing the server plugin disables comments on the next check" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeCommentsTests" time="0.042"/>
+  <testcase name="absent unauthorized and unreachable plugin checks fail closed" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeCommentsTests" time="0.033"/>
+  <testcase name="unconfigured incompatible and malformed capabilities hide the feature" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeCommentsTests" time="0.028"/>
+  <testcase name="spoiler flags and inline tags both hide previews" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeCommentsTests" time="0.003"/>
+  <testcase name="comments use the current Jellyfin SDK session and versioned item route" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeCommentsTests" time="0.057"/>
+  <testcase name="reply pages include item context and omit unsupported sort" classname="org.jellyfin.androidtv.ui.itemdetail.EpisodeCommentsTests" time="0.016"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[WARNING: A Java agent has been loaded dynamically (C:\Users\micha\.gradle\caches\modules-2\files-2.1\net.bytebuddy\byte-buddy-agent\1.18.2\62f38a6faf7f069d661b79a07d566f504b0b20c4\byte-buddy-agent-1.18.2.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+]]></system-err>
+</testsuite>

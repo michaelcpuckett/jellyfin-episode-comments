@@ -13,7 +13,7 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public Plugin(IApplicationPaths paths, IXmlSerializer serializer) : base(paths, serializer) => Instance = this;
     public static Plugin? Instance { get; private set; }
     public override string Name => "Episode Comments";
-    public override string Description => "Read Trakt episode discussions from any Jellyfin client.";
+    public override string Description => "Read Trakt movie, series and episode discussions from any Jellyfin client.";
     public override Guid Id => Guid.Parse("79672a4d-f247-4370-9e41-f508bd891631");
     public IEnumerable<PluginPageInfo> GetPages() =>
     [
@@ -47,10 +47,11 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
         {
             client.BaseAddress = new Uri("https://api.trakt.tv/");
             client.Timeout = TimeSpan.FromSeconds(15);
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-EpisodeComments/0.1.0");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-EpisodeComments/0.2.0");
         });
         services.AddSingleton<TraktClient>();
         services.AddSingleton<EpisodeResolver>();
+        services.AddSingleton<MediaResolver>();
         services.AddSingleton<CommentsService>();
     }
 }

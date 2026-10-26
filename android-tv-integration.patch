@@ -1,9 +1,9 @@
 diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsApi.kt b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsApi.kt
 new file mode 100644
-index 000000000..f9d09e6b3
+index 000000000..012d15561
 --- /dev/null
 +++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsApi.kt
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,81 @@
 +package org.jellyfin.androidtv.ui.itemdetail
 +
 +import kotlinx.coroutines.CancellationException
@@ -13,6 +13,7 @@ index 000000000..f9d09e6b3
 +import kotlinx.serialization.Serializable
 +import kotlinx.serialization.json.Json
 +import org.jellyfin.sdk.api.client.ApiClient
++import org.jellyfin.sdk.model.api.BaseItemKind
 +import java.util.UUID
 +
 +@Serializable
@@ -38,17 +39,23 @@ index 000000000..f9d09e6b3
 +)
 +
 +@Serializable
-+private data class EpisodeCommentsCapabilities(val pluginId: String, val apiVersion: Int, val configured: Boolean)
++private data class EpisodeCommentsCapabilities(val pluginId: String, val apiVersion: Int, val configured: Boolean, val supportedItemTypes: List<String> = listOf("Episode"))
 +
 +internal class EpisodeCommentsApi(private val api: ApiClient) {
 +	private val json = Json { ignoreUnknownKeys = true }
 +
-+	suspend fun isAvailable(): Boolean = try {
++	suspend fun isAvailable(itemType: BaseItemKind? = BaseItemKind.EPISODE): Boolean = try {
 +		withTimeoutOrNull(2500) {
 +			withContext(Dispatchers.IO) {
 +				val response = api.request(pathTemplate = "/EpisodeComments/v1/Capabilities")
 +				val capabilities = json.decodeFromString<EpisodeCommentsCapabilities>(response.body.decodeToString())
-+				capabilities.pluginId == "79672a4d-f247-4370-9e41-f508bd891631" && capabilities.apiVersion == 1 && capabilities.configured
++				val type = when (itemType) {
++					BaseItemKind.EPISODE -> "Episode"
++					BaseItemKind.MOVIE -> "Movie"
++					BaseItemKind.SERIES -> "Series"
++					else -> ""
++				}
++				capabilities.pluginId == "79672a4d-f247-4370-9e41-f508bd891631" && capabilities.apiVersion == 1 && capabilities.configured && type in capabilities.supportedItemTypes
 +			}
 +		} ?: false
 +	} catch (error: CancellationException) {
@@ -80,10 +87,10 @@ index 000000000..f9d09e6b3
 +}
 diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsDialogFragment.kt b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsDialogFragment.kt
 new file mode 100644
-index 000000000..5a8fe07b3
+index 000000000..cd4c65f3d
 --- /dev/null
 +++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeCommentsDialogFragment.kt
-@@ -0,0 +1,252 @@
+@@ -0,0 +1,268 @@
 +package org.jellyfin.androidtv.ui.itemdetail
 +
 +import android.app.AlertDialog
@@ -120,6 +127,7 @@ index 000000000..5a8fe07b3
 +	private val api by inject<ApiClient>()
 +	private val locations = mutableListOf(DiscussionLocation())
 +	private var sort = "likes"
++	private var initialCommentOpened = false
 +	private var loadJob: Job? = null
 +	private lateinit var comments: LinearLayout
 +	private lateinit var status: TextView
@@ -132,6 +140,7 @@ index 000000000..5a8fe07b3
 +	override fun onCreate(savedInstanceState: Bundle?) {
 +		super.onCreate(savedInstanceState)
 +		sort = savedInstanceState?.getString("sort") ?: "likes"
++		initialCommentOpened = savedInstanceState?.getBoolean("initialCommentOpened") ?: false
 +		savedInstanceState?.getString("locations")?.let {
 +			locations.clear()
 +			locations.addAll(Json.decodeFromString<List<DiscussionLocation>>(it))
@@ -145,6 +154,7 @@ index 000000000..5a8fe07b3
 +	override fun onSaveInstanceState(outState: Bundle) {
 +		super.onSaveInstanceState(outState)
 +		outState.putString("sort", sort)
++		outState.putBoolean("initialCommentOpened", initialCommentOpened)
 +		outState.putString("locations", Json.encodeToString(locations))
 +	}
 +
@@ -203,6 +213,10 @@ index 000000000..5a8fe07b3
 +		super.onStart()
 +		dialog?.window?.setLayout((resources.displayMetrics.widthPixels * 0.86f).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
 +		load()
++		if (!initialCommentOpened) {
++			initialCommentOpened = true
++			requireArguments().getString("initialComment")?.let { EpisodeCommentDetailDialogFragment.show(parentFragmentManager, Json.decodeFromString<EpisodeComment>(it)) }
++		}
 +	}
 +
 +	private fun changePage(change: Int) {
@@ -274,8 +288,17 @@ index 000000000..5a8fe07b3
 +
 +		@JvmStatic
 +		fun show(manager: FragmentManager, item: BaseItemDto) {
++			showComment(manager, item, null)
++		}
++
++		internal fun showComment(manager: FragmentManager, item: BaseItemDto, comment: EpisodeComment?) {
 +			if (manager.isStateSaved || manager.findFragmentByTag(TAG) != null) return
-+			EpisodeCommentsDialogFragment().apply { arguments = Bundle().apply { putString("itemId", item.id.toString()) } }.show(manager, TAG)
++			EpisodeCommentsDialogFragment().apply {
++				arguments = Bundle().apply {
++					putString("itemId", item.id.toString())
++					if (comment != null) putString("initialComment", Json.encodeToString(comment))
++				}
++			}.showNow(manager, TAG)
 +		}
 +	}
 +}
@@ -336,103 +359,237 @@ index 000000000..5a8fe07b3
 +		}
 +	}
 +}
+diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeDetailsSections.kt b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeDetailsSections.kt
+new file mode 100644
+index 000000000..14f5eacee
+--- /dev/null
++++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/EpisodeDetailsSections.kt
+@@ -0,0 +1,139 @@
++package org.jellyfin.androidtv.ui.itemdetail
++
++import android.graphics.Color
++import android.graphics.drawable.GradientDrawable
++import android.graphics.drawable.StateListDrawable
++import android.text.TextUtils
++import android.view.ViewGroup
++import android.widget.TextView
++import android.widget.Toast
++import androidx.leanback.widget.ArrayObjectAdapter
++import androidx.leanback.widget.HeaderItem
++import androidx.leanback.widget.ListRow
++import androidx.leanback.widget.Presenter
++import androidx.leanback.widget.Row
++import androidx.lifecycle.lifecycleScope
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++import org.jellyfin.androidtv.R
++import org.jellyfin.androidtv.ui.itemhandling.ItemRowAdapter
++import org.jellyfin.androidtv.ui.presentation.CardPresenter
++import org.jellyfin.androidtv.ui.presentation.MutableObjectAdapter
++import org.jellyfin.sdk.api.client.ApiClient
++import org.jellyfin.sdk.api.client.extensions.userLibraryApi
++import org.jellyfin.sdk.model.api.BaseItemDto
++import org.jellyfin.sdk.model.api.BaseItemKind
++import org.jellyfin.sdk.model.api.BaseItemPerson
++import org.jellyfin.sdk.model.api.PersonKind
++import org.koin.android.ext.android.inject
++
++internal fun regularEpisodeCast(seriesPeople: List<BaseItemPerson>, episodePeople: List<BaseItemPerson>): List<BaseItemPerson> {
++	val guestIds = episodePeople.filter { it.type == PersonKind.GUEST_STAR }.map { it.id }.toSet()
++	return (seriesPeople + episodePeople).filter { it.type == PersonKind.ACTOR && it.id !in guestIds }.distinctBy { it.id }
++}
++
++// Row IDs keep asynchronously loaded Cast and Comments in their intended positions.
++internal fun episodeSectionIndex(headerIds: List<Long?>, sectionId: Long): Int =
++	headerIds.indexOfFirst { it != null && it in 20L..70L && it > sectionId }.takeIf { it >= 0 } ?: headerIds.size
++
++private fun insertSection(rows: MutableObjectAdapter<Row>, row: ListRow, episode: Boolean) {
++	val index = if (episode) episodeSectionIndex(rows.map { (it as? ListRow)?.headerItem?.id }, row.headerItem.id) else rows.size()
++	rows.add(index, row)
++}
++
++fun FullDetailsFragment.addEpisodeCast(rows: MutableObjectAdapter<Row>, item: BaseItemDto) {
++	val api by inject<ApiClient>()
++	viewLifecycleOwner.lifecycleScope.launch {
++		val seriesPeople = try {
++			item.seriesId?.let { id -> withContext(Dispatchers.IO) { api.userLibraryApi.getItem(id).content.people } }.orEmpty()
++		} catch (error: CancellationException) {
++			throw error
++		} catch (_: Exception) {
++			emptyList()
++		}
++		if (!isCurrentDetailsAdapter(rows, item.id)) return@launch
++		val people = regularEpisodeCast(seriesPeople, item.people.orEmpty())
++		if (people.isEmpty()) return@launch
++		val cast = ItemRowAdapter(people, requireContext(), CardPresenter(true, 130), rows)
++		val row = ListRow(HeaderItem(30, getString(R.string.episode_details_cast)), cast)
++		insertSection(rows, row, true)
++		cast.setRow(row)
++		cast.Retrieve()
++	}
++}
++
++class DiscussionCard(val title: String, val body: String, private val action: () -> Unit) {
++	fun open() = action()
++}
++
++private class DiscussionCardPresenter : Presenter() {
++	override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
++		val density = parent.resources.displayMetrics.density
++		fun background(color: Int) = GradientDrawable().apply { setColor(color); cornerRadius = 10 * density }
++		val card = TextView(parent.context).apply {
++			layoutParams = ViewGroup.LayoutParams((340 * density).toInt(), (190 * density).toInt())
++			setPadding((18 * density).toInt(), (16 * density).toInt(), (18 * density).toInt(), (16 * density).toInt())
++			textSize = 17f
++			setTextColor(Color.WHITE)
++			maxLines = 7
++			ellipsize = TextUtils.TruncateAt.END
++			isFocusable = true
++			isFocusableInTouchMode = true
++			background = StateListDrawable().apply {
++				addState(intArrayOf(android.R.attr.state_focused), background(Color.rgb(72, 62, 112)))
++				addState(intArrayOf(), background(Color.rgb(38, 38, 44)))
++			}
++		}
++		return ViewHolder(card)
++	}
++
++	override fun onBindViewHolder(viewHolder: ViewHolder, item: Any?) {
++		val card = item as? DiscussionCard ?: return
++		(viewHolder.view as TextView).text = card.title + "\n\n" + card.body
++	}
++
++	override fun onUnbindViewHolder(viewHolder: ViewHolder) = Unit
++}
++
++fun FullDetailsFragment.addCommentsSection(rows: MutableObjectAdapter<Row>, item: BaseItemDto) {
++	val api by inject<ApiClient>()
++	val client = EpisodeCommentsApi(api)
++	viewLifecycleOwner.lifecycleScope.launch {
++		if (!client.isAvailable(item.type) || !isCurrentDetailsAdapter(rows, item.id)) return@launch
++		val cards = ArrayObjectAdapter(DiscussionCardPresenter())
++		val row = ListRow(HeaderItem(50, getString(R.string.episode_comments_title)), cards)
++		fun open(comment: EpisodeComment? = null) {
++			viewLifecycleOwner.lifecycleScope.launch {
++				if (!client.isAvailable(item.type)) {
++					if (isCurrentDetailsAdapter(rows, item.id)) {
++						rows.remove(row)
++						Toast.makeText(requireContext(), R.string.episode_comments_unavailable, Toast.LENGTH_SHORT).show()
++					}
++				} else if (isCurrentDetailsAdapter(rows, item.id)) {
++					EpisodeCommentsDialogFragment.showComment(parentFragmentManager, item, comment)
++				}
++			}
++		}
++		cards.add(DiscussionCard(getString(R.string.episode_comments_loading), getString(R.string.episode_comments_attribution)) { open() })
++		insertSection(rows, row, item.type == BaseItemKind.EPISODE)
++		try {
++			val page = client.getComments(item.id, "likes", 1)
++			if (!isCurrentDetailsAdapter(rows, item.id)) return@launch
++			val previews = page.comments.take(5).map { comment ->
++				DiscussionCard(getString(R.string.episode_comments_card, comment.author, comment.likes, comment.replyCount),
++					if (comment.containsSpoilers) getString(R.string.episode_comments_spoiler) else comment.text.take(300)) { open(comment) }
++			}
++			val browse = DiscussionCard(getString(R.string.episode_comments_browse),
++				if (previews.isEmpty()) getString(R.string.episode_comments_empty) else getString(R.string.episode_comments_browse_description, page.totalItems)) { open() }
++			cards.setItems(previews + browse, null)
++		} catch (error: CancellationException) {
++			throw error
++		} catch (_: Exception) {
++			if (!isCurrentDetailsAdapter(rows, item.id)) return@launch
++			if (!client.isAvailable(item.type)) rows.remove(row)
++			else cards.setItems(listOf(DiscussionCard(getString(R.string.episode_comments_retry), getString(R.string.episode_comments_network_error)) { open() }), null)
++		}
++	}
++}
 diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragment.java b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragment.java
-index 148d50f2b..f5c40a7e0 100644
+index 148d50f2b..1cc1d2eb7 100644
 --- a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragment.java
 +++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragment.java
-@@ -763,8 +763,12 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
-     TextUnderButton moreButton;
-     TextUnderButton playButton = null;
-     TextUnderButton trailerButton = null;
-+    TextUnderButton commentsButton = null;
-+    private boolean commentsAvailable = false;
+@@ -557,6 +557,7 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
+                 ItemRowAdapter similarMoviesAdapter = new ItemRowAdapter(requireContext(), BrowsingUtils.createSimilarItemsRequest(mBaseItem.getId()), QueryType.SimilarMovies, new CardPresenter(), adapter);
+                 addItemRow(adapter, similarMoviesAdapter, 5, getString(R.string.lbl_more_like_this));
  
-     private void addButtons(int buttonSize) {
-+        commentsAvailable = false;
-+        commentsButton = null;
-         BaseItemDto baseItem = mBaseItem;
-         String buttonLabel;
-         if (baseItem.getType() == BaseItemKind.SERIES) {
-@@ -856,6 +860,14 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
-             mDetailsOverviewRow.addAction(mVersionsButton);
-         }
++                EpisodeDetailsSectionsKt.addCommentsSection(this, adapter, mBaseItem);
+                 addInfoRows(adapter);
+                 break;
+             case TRAILER:
+@@ -610,21 +611,18 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
  
-+        if (mBaseItem.getType() == BaseItemKind.EPISODE) {
-+            commentsButton = TextUnderButton.create(requireContext(), R.drawable.ic_episode_comments, buttonSize, 0,
-+                    getString(R.string.episode_comments_title), v -> FullDetailsFragmentHelperKt.openEpisodeComments(this));
-+            commentsButton.setVisibility(View.GONE);
-+            mDetailsOverviewRow.addAction(commentsButton);
-+            FullDetailsFragmentHelperKt.discoverEpisodeComments(this);
-+        }
+                 ItemRowAdapter similarAdapter = new ItemRowAdapter(requireContext(), BrowsingUtils.createSimilarItemsRequest(mBaseItem.getId()), QueryType.SimilarSeries, new CardPresenter(), adapter);
+                 addItemRow(adapter, similarAdapter, 4, getString(R.string.lbl_more_like_this));
++                EpisodeDetailsSectionsKt.addCommentsSection(this, adapter, mBaseItem);
+                 break;
+ 
+             case EPISODE:
+-                //Additional Parts
+-                if (mBaseItem.getPartCount() != null && mBaseItem.getPartCount() > 0) {
+-                    ItemRowAdapter additionalPartsAdapter = new ItemRowAdapter(requireContext(), new GetAdditionalPartsRequest(mBaseItem.getId()), new CardPresenter(), adapter);
+-                    addItemRow(adapter, additionalPartsAdapter, 0, getString(R.string.lbl_additional_parts));
+-                }
+-
+                 if (mBaseItem.getSeasonId() != null && mBaseItem.getIndexNumber() != null) {
+                     // query index is zero-based but episode no is not
+                     ItemRowAdapter nextAdapter = new ItemRowAdapter(requireContext(), BrowsingUtils.createNextEpisodesRequest(mBaseItem.getSeasonId(), mBaseItem.getIndexNumber()), 0, false, true, new CardPresenter(true, 120), adapter);
+-                    addItemRow(adapter, nextAdapter, 5, getString(R.string.lbl_next_episode));
++                    addItemRow(adapter, nextAdapter, 20, getString(R.string.lbl_next_episode));
+                 }
+ 
++                EpisodeDetailsSectionsKt.addEpisodeCast(this, adapter, mBaseItem);
 +
-         if (MediaFileInfoDialogFragment.canShow(mBaseItem)) {
-             fileInfoButton = TextUnderButton.create(requireContext(), R.drawable.ic_info, buttonSize, 0,
-                     getString(R.string.file_info), v -> MediaFileInfoDialogFragment.show(getParentFragmentManager(), mBaseItem));
-@@ -1127,10 +1139,20 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
+                 //Guest stars
+                 if (mBaseItem.getPeople() != null && !mBaseItem.getPeople().isEmpty()) {
+                     List<BaseItemPerson> guests = new ArrayList<>();
+@@ -633,17 +631,23 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
+                     }
+                     if (!guests.isEmpty()) {
+                         ItemRowAdapter castAdapter = new ItemRowAdapter(guests, requireContext(), new CardPresenter(true, 130), adapter);
+-                        addItemRow(adapter, castAdapter, 0, getString(R.string.lbl_guest_stars));
++                        addItemRow(adapter, castAdapter, 40, getString(R.string.lbl_guest_stars));
+                     }
+                 }
+ 
++                EpisodeDetailsSectionsKt.addCommentsSection(this, adapter, mBaseItem);
++
+                 //Chapters
+                 if (mBaseItem.getChapters() != null && !mBaseItem.getChapters().isEmpty()) {
+                     List<ChapterItemInfo> chapters = BaseItemExtensionsKt.buildChapterItems(mBaseItem);
+                     ItemRowAdapter chapterAdapter = new ItemRowAdapter(requireContext(), chapters, new CardPresenter(true, 120), adapter);
+-                    addItemRow(adapter, chapterAdapter, 1, getString(R.string.lbl_chapters));
++                    addItemRow(adapter, chapterAdapter, 60, getString(R.string.lbl_chapters));
+                 }
+ 
++                if (mBaseItem.getPartCount() != null && mBaseItem.getPartCount() > 0) {
++                    ItemRowAdapter additionalPartsAdapter = new ItemRowAdapter(requireContext(), new GetAdditionalPartsRequest(mBaseItem.getId()), new CardPresenter(), adapter);
++                    addItemRow(adapter, additionalPartsAdapter, 70, getString(R.string.lbl_additional_parts));
++                }
+                 addInfoRows(adapter);
+                 break;
+ 
+@@ -1127,6 +1131,10 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
  
      int collapsedOptions = 0;
  
-+    boolean canShowEpisodeComments() { return commentsAvailable; }
-+
-+    void setEpisodeCommentsAvailable(UUID itemId, TextUnderButton expectedButton, boolean available) {
-+        if (!isAdded() || getView() == null || !mBaseItem.getId().equals(itemId) || commentsButton != expectedButton) return;
-+        commentsAvailable = available;
-+        commentsButton.setVisibility(available ? View.VISIBLE : View.GONE);
-+        showMoreButtonIfNeeded();
++    boolean isCurrentDetailsAdapter(MutableObjectAdapter<Row> adapter, UUID itemId) {
++        return isAdded() && getView() != null && mRowsAdapter == adapter && mBaseItem.getId().equals(itemId);
 +    }
 +
      void showMoreButtonIfNeeded() {
          int visibleOptions = mDetailsOverviewRow.getVisibleActions();
  
-         List<TextUnderButton> actionsList = new ArrayList<>();
-+        if (commentsAvailable && commentsButton != null) actionsList.add(commentsButton);
-         // added in order of priority (should match res/menu/menu_details_more.xml)
-         if (fileInfoButton != null) actionsList.add(fileInfoButton);
-         if (queueButton != null) actionsList.add(queueButton);
-diff --git a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragmentHelper.kt b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragmentHelper.kt
-index f5f0a7f24..109dec413 100644
---- a/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragmentHelper.kt
-+++ b/app/src/main/java/org/jellyfin/androidtv/ui/itemdetail/FullDetailsFragmentHelper.kt
-@@ -74,6 +74,9 @@ fun FullDetailsFragment.showDetailsMenu(
- 	view: View,
- 	baseItemDto: BaseItemDto,
- ) = popupMenu(requireContext(), view) {
-+	if (canShowEpisodeComments() && commentsButton?.isVisible == false) {
-+		item(getString(R.string.episode_comments_title)) { openEpisodeComments() }
-+	}
- 	// for each button check if it exists (not-null) and is invisible (overflow prevention)
- 	if (fileInfoButton?.isVisible == false) {
- 		item(getString(R.string.file_info)) { MediaFileInfoDialogFragment.show(parentFragmentManager, mBaseItem) }
-@@ -104,6 +107,29 @@ fun FullDetailsFragment.showDetailsMenu(
- 	}
- }.showIfNotEmpty()
+@@ -1197,6 +1205,10 @@ public class FullDetailsFragment extends Fragment implements RecordingIndicatorV
+         public void onItemClicked(final Presenter.ViewHolder itemViewHolder, Object item,
+                                   RowPresenter.ViewHolder rowViewHolder, Row row) {
  
-+fun FullDetailsFragment.discoverEpisodeComments() {
-+	val api by inject<ApiClient>()
-+	val itemId = mBaseItem.id
-+	val button = commentsButton ?: return
-+	viewLifecycleOwner.lifecycleScope.launch {
-+		setEpisodeCommentsAvailable(itemId, button, EpisodeCommentsApi(api).isAvailable())
-+	}
-+}
-+
-+fun FullDetailsFragment.openEpisodeComments() {
-+	val api by inject<ApiClient>()
-+	val item = mBaseItem
-+	val button = commentsButton ?: return
-+	viewLifecycleOwner.lifecycleScope.launch {
-+		// Recheck on selection in case the plugin was removed while details stayed open.
-+		val available = EpisodeCommentsApi(api).isAvailable()
-+		if (mBaseItem.id != item.id || commentsButton !== button) return@launch
-+		setEpisodeCommentsAvailable(item.id, button, available)
-+		if (available) EpisodeCommentsDialogFragment.show(parentFragmentManager, item)
-+		else Toast.makeText(requireContext(), R.string.episode_comments_unavailable, Toast.LENGTH_SHORT).show()
-+	}
-+}
-+
- fun FullDetailsFragment.createFakeSeriesTimerBaseItemDto(timer: SeriesTimerInfoDto) = BaseItemDto(
- 	id = requireNotNull(timer.id).toUUID(),
- 	type = BaseItemKind.FOLDER,
++            if (item instanceof DiscussionCard) {
++                ((DiscussionCard) item).open();
++                return;
++            }
+             if (!(item instanceof BaseRowItem)) return;
+             itemLauncher.getValue().launch((BaseRowItem) item, (ItemRowAdapter) ((ListRow) row).getAdapter(), requireContext());
+         }
 diff --git a/app/src/main/res/drawable/ic_episode_comments.xml b/app/src/main/res/drawable/ic_episode_comments.xml
 new file mode 100644
 index 000000000..5839c8e3d
@@ -444,13 +601,16 @@ index 000000000..5839c8e3d
 +</vector>
 diff --git a/app/src/main/res/values/strings_episode_comments.xml b/app/src/main/res/values/strings_episode_comments.xml
 new file mode 100644
-index 000000000..df6c4daa1
+index 000000000..2cd631db7
 --- /dev/null
 +++ b/app/src/main/res/values/strings_episode_comments.xml
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,34 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +<resources>
 +    <string name="episode_comments_title">Comments</string>
++    <string name="episode_details_cast">Cast</string>
++    <string name="episode_comments_browse">View all comments</string>
++    <string name="episode_comments_browse_description">%1$d comments on Trakt · open to sort, read replies and browse more</string>
 +    <string name="episode_comments_unavailable">Comments are unavailable on this server.</string>
 +    <string name="episode_comments_back">Back to discussion</string>
 +    <string name="episode_comments_sort">Sort comments</string>
@@ -472,8 +632,8 @@ index 000000000..df6c4daa1
 +    <string name="episode_comments_replies">Replies</string>
 +    <string name="episode_comments_retry">Retry</string>
 +    <string name="episode_comments_detail_title">%1$s · %2$s</string>
-+    <string name="episode_comments_auth_error">Sign in again to read comments. Your Jellyfin user must have access to this episode.</string>
-+    <string name="episode_comments_missing_error">Comments are unavailable. Check that the Episode Comments server plugin is installed and that this episode has matching provider IDs.</string>
++    <string name="episode_comments_auth_error">Sign in again to read comments. Your Jellyfin user must have access to this title.</string>
++    <string name="episode_comments_missing_error">Comments are unavailable. Check that the Episode Comments server plugin is installed and that this title has matching provider IDs.</string>
 +    <string name="episode_comments_mapping_error">This episode needs a matching override in the server plugin settings. Combined files and alternate episode orders may need an explicit match.</string>
 +    <string name="episode_comments_rate_error">Trakt is receiving too many requests. Wait a little before retrying.</string>
 +    <string name="episode_comments_config_error">Ask the server administrator to check the Episode Comments plugin’s Trakt Client ID.</string>
@@ -481,10 +641,10 @@ index 000000000..df6c4daa1
 +</resources>
 diff --git a/app/src/test/kotlin/ui/itemdetail/EpisodeCommentsTests.kt b/app/src/test/kotlin/ui/itemdetail/EpisodeCommentsTests.kt
 new file mode 100644
-index 000000000..bf5ad699f
+index 000000000..136877501
 --- /dev/null
 +++ b/app/src/test/kotlin/ui/itemdetail/EpisodeCommentsTests.kt
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,116 @@
 +package org.jellyfin.androidtv.ui.itemdetail
 +
 +import io.kotest.core.spec.style.FunSpec
@@ -495,9 +655,30 @@ index 000000000..bf5ad699f
 +import org.jellyfin.sdk.api.client.ApiClient
 +import org.jellyfin.sdk.api.client.RawResponse
 +import org.jellyfin.sdk.api.client.exception.InvalidStatusException
++import org.jellyfin.sdk.model.api.BaseItemKind
 +import java.util.UUID
 +
 +class EpisodeCommentsTests : FunSpec({
++	test("old episode-only server hides movie and series sections") {
++		val api = mockk<ApiClient>()
++		coEvery { api.request(any(), any(), any(), any(), any()) } returns RawResponse(
++			"""{"pluginId":"79672a4d-f247-4370-9e41-f508bd891631","apiVersion":1,"configured":true}""".toByteArray(), 200, emptyMap(),
++		)
++		EpisodeCommentsApi(api).isAvailable(BaseItemKind.MOVIE) shouldBe false
++		EpisodeCommentsApi(api).isAvailable(BaseItemKind.SERIES) shouldBe false
++		EpisodeCommentsApi(api).isAvailable(BaseItemKind.EPISODE) shouldBe true
++	}
++
++	test("new server advertises movie and series support without enabling unrelated item types") {
++		val api = mockk<ApiClient>()
++		coEvery { api.request(any(), any(), any(), any(), any()) } returns RawResponse(
++			"""{"pluginId":"79672a4d-f247-4370-9e41-f508bd891631","apiVersion":1,"configured":true,"supportedItemTypes":["Movie","Series","Episode"]}""".toByteArray(), 200, emptyMap(),
++		)
++		EpisodeCommentsApi(api).isAvailable(BaseItemKind.MOVIE) shouldBe true
++		EpisodeCommentsApi(api).isAvailable(BaseItemKind.SERIES) shouldBe true
++		EpisodeCommentsApi(api).isAvailable(BaseItemKind.PERSON) shouldBe false
++	}
++
 +	test("a configured compatible plugin enables comments") {
 +		val api = mockk<ApiClient>()
 +		coEvery { api.request(any(), any(), any(), any(), any()) } returns RawResponse(
@@ -578,5 +759,54 @@ index 000000000..bf5ad699f
 +				queryParameters = mapOf("page" to 3, "limit" to 20),
 +			)
 +		}
++	}
++})
+diff --git a/app/src/test/kotlin/ui/itemdetail/EpisodeDetailsSectionsTests.kt b/app/src/test/kotlin/ui/itemdetail/EpisodeDetailsSectionsTests.kt
+new file mode 100644
+index 000000000..1fe94ba39
+--- /dev/null
++++ b/app/src/test/kotlin/ui/itemdetail/EpisodeDetailsSectionsTests.kt
+@@ -0,0 +1,43 @@
++package org.jellyfin.androidtv.ui.itemdetail
++
++import io.kotest.core.spec.style.FunSpec
++import io.kotest.matchers.shouldBe
++import org.jellyfin.sdk.model.api.BaseItemPerson
++import org.jellyfin.sdk.model.api.PersonKind
++import java.util.UUID
++
++class EpisodeDetailsSectionsTests : FunSpec({
++	test("late Cast and Comments responses preserve Next Cast Guest Comments order") {
++		for (arrivalOrder in listOf(listOf(30L, 50L), listOf(50L, 30L))) {
++			val rows = mutableListOf<Long?>(null, 20L, 40L, 60L, 70L)
++			for (id in arrivalOrder) rows.add(episodeSectionIndex(rows, id), id)
++			rows shouldBe listOf(null, 20L, 30L, 40L, 50L, 60L, 70L)
++		}
++	}
++
++	test("missing next episode and guest stars do not displace comments below extras") {
++		episodeSectionIndex(listOf(null, 60L, 70L), 50L) shouldBe 1
++		episodeSectionIndex(listOf(null), 50L) shouldBe 1
++	}
++
++	test("regular Cast includes series actors while keeping guest stars separate and deduplicated") {
++		val regularId = UUID.randomUUID()
++		val guestId = UUID.randomUUID()
++		val series = listOf(
++			BaseItemPerson(id = regularId, name = "Regular", type = PersonKind.ACTOR, role = "Lead"),
++			BaseItemPerson(id = guestId, name = "Guest", type = PersonKind.ACTOR),
++			BaseItemPerson(id = UUID.randomUUID(), name = "Director", type = PersonKind.DIRECTOR),
++		)
++		val episode = listOf(
++			BaseItemPerson(id = regularId, name = "Regular", type = PersonKind.ACTOR),
++			BaseItemPerson(id = guestId, name = "Guest", type = PersonKind.GUEST_STAR),
++		)
++		regularEpisodeCast(series, episode).map { it.id } shouldBe listOf(regularId)
++		regularEpisodeCast(series, episode).single().role shouldBe "Lead"
++	}
++
++	test("episode actor metadata is usable when the parent series request fails") {
++		val actor = BaseItemPerson(id = UUID.randomUUID(), name = "Actor", type = PersonKind.ACTOR)
++		regularEpisodeCast(emptyList(), listOf(actor)) shouldBe listOf(actor)
 +	}
 +})

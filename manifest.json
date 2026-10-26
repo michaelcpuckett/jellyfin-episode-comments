@@ -2,11 +2,19 @@
   {
     "guid": "79672a4d-f247-4370-9e41-f508bd891631",
     "name": "Episode Comments",
-    "overview": "Trakt episode discussions for compatible web, mobile and TV clients.",
-    "description": "Read-only Trakt episode comments and replies through an authenticated Jellyfin API.",
+    "overview": "Trakt movie, series and episode discussions for compatible Jellyfin clients.",
+    "description": "Read-only Trakt movie, series and episode comments and replies through an authenticated Jellyfin API.",
     "owner": "Episode Comments contributors",
     "category": "General",
     "versions": [
+      {
+        "version": "0.2.0.0",
+        "changelog": "Movie and series discussions, backwards-compatible episode API, and Android TV comment previews with a regular Cast row.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/michaelcpuckett/jellyfin-episode-comments/master/packages/EpisodeComments-jellyfin12-0.2.0.zip",
+        "checksum": "42fffdae78cd08ac6274df02ac9059a8",
+        "timestamp": "2026-10-26T15:20:51Z"
+      },
       {
         "version": "0.1.0.0",
         "changelog": "Initial read-only Trakt comments API and optional Android TV integration.",
